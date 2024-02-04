@@ -1,0 +1,35 @@
+definitions:
+  server.health:
+    properties:
+      cpu:
+        type: number
+      memory:
+        type: number
+      name:
+        type: string
+    type: object
+info:
+  contact: {}
+  license:
+    name: MIT
+    url: https://github.com/simple-retro/api/blob/master/LICENSE
+paths:
+  /health:
+    get:
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: API metrics
+          schema:
+            $ref: '#/definitions/server.health'
+        "500":
+          description: Internal error
+          schema:
+            type: string
+      summary: Show API health
+      tags:
+      - ""
+swagger: "2.0"

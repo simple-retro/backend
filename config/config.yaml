@@ -1,0 +1,8 @@
+name: Simple Retro API
+
+server:
+  port: 8080
+
+database:
+  address: "database.db"
+  max_conn: 20
