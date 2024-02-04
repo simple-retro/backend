@@ -8,7 +8,6 @@ import (
 
 	"api/config"
 	"api/docs"
-	"api/internal/repository"
 	"api/internal/service"
 	"api/types"
 
@@ -358,20 +357,24 @@ func (ct *controller) deleteQuestion(c *gin.Context) {
 //	@Tags		Question
 //	@Accept		json
 //	@Produce	json
+//	@Param		id	path		string			true	"Repository ID"
 //	@Failure	500	{string}	string	"Internal error"
 //	@Router		/hello [get]
 func (ct *controller) subscribeChanges(c *gin.Context) {
 	var err error
 	retroIDparam := c.Param("id")
-	if retroIDparam != "" {
-		retroID, err := uuid.Parse(retroIDparam)
-		if err != nil {
-			log.Printf("error parsing retrospective_id: %s", err.Error())
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "not in any retrospective"})
-			return
-		}
-		c.Set("retrospective_id", retroID)
+	if retroIDparam == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not in any retrospective"})
+		return
 	}
+
+	retroID, err := uuid.Parse(retroIDparam)
+	if err != nil {
+		log.Printf("error parsing retrospective_id: %s", err.Error())
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not in any retrospective"})
+		return
+	}
+	c.Set("retrospective_id", retroID)
 
 	err = ct.service.SubscribeChanges(c, c.Writer, c.Request)
 	if err != nil {
@@ -419,9 +422,9 @@ func Authenticate() gin.HandlerFunc {
 	}
 }
 
-//	@license.name	MIT
-//	@license.url	https://github.com/simple-retro/api/blob/master/LICENSE
-func Start() {
+// @license.name	MIT
+// @license.url	https://github.com/simple-retro/api/blob/master/LICENSE
+func (c *controller) Start() {
 	config := config.Get()
 
 	// Swagger
@@ -431,40 +434,25 @@ func Start() {
 	docs.SwaggerInfo.Host = "127.0.0.1:8080"
 	docs.SwaggerInfo.Schemes = []string{"http", "https"}
 
-	repo, err := repository.NewSQLite()
-	if err != nil {
-		log.Fatalf("error creating repository: %s", err.Error())
-	}
-
-	wsrepo, err := repository.NewWebSocket()
-	if err != nil {
-		log.Fatalf("error creating repository: %s", err.Error())
-	}
-
-	service := service.New(repo, wsrepo)
-
-	controller := New(service)
-
 	router := gin.Default()
 
 	router.Use(CORSMiddleware())
 
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
-	router.GET("/health", controller.health)
+	router.GET("/health", c.health)
 
 	api := router.Group("/api")
-	api.POST("/retrospective", controller.createRetrospective)
-	api.GET("/retrospective/:id", controller.getRetrospective)
-	api.PATCH("/retrospective/:id", controller.updateRetrospective)
-	api.DELETE("/retrospective/:id", controller.deleteRetrospective)
-	api.GET("/hello", controller.subscribeChanges)
-	api.GET("/hello/:id", controller.subscribeChanges)
+	api.POST("/retrospective", c.createRetrospective)
+	api.GET("/retrospective/:id", c.getRetrospective)
+	api.PATCH("/retrospective/:id", c.updateRetrospective)
+	api.DELETE("/retrospective/:id", c.deleteRetrospective)
+	api.GET("/hello/:id", c.subscribeChanges)
 
 	authorized := api.Group("/")
 	authorized.Use(Authenticate())
-	authorized.POST("/question", controller.createQuestion)
-	authorized.PATCH("/question/:id", controller.updateQuestion)
-	authorized.DELETE("/question/:id", controller.deleteQuestion)
+	authorized.POST("/question", c.createQuestion)
+	authorized.PATCH("/question/:id", c.updateQuestion)
+	authorized.DELETE("/question/:id", c.deleteQuestion)
 
 	router.Run(fmt.Sprintf(":%d", config.Server.Port))
 }
