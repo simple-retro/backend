@@ -1,20 +1,21 @@
 package server
 
 import (
-	"api/config"
-	"api/docs"
-	"api/internal/repository"
-	"api/internal/service"
-	"api/types"
 	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
 
+	"api/config"
+	"api/docs"
+	"api/internal/repository"
+	"api/internal/service"
+	"api/types"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/swaggo/files"       // swagger embed files
-	"github.com/swaggo/gin-swagger" // gin-swagger middleware
+	swaggerFiles "github.com/swaggo/files"     // swagger embed files
+	ginSwagger "github.com/swaggo/gin-swagger" // gin-swagger middleware
 )
 
 type controller struct {
@@ -123,6 +124,121 @@ func (ct *controller) getRetrospective(c *gin.Context) {
 	c.JSON(http.StatusOK, retro)
 }
 
+// createQuestion godoc
+//
+// @Summary Create Question
+// @Tags Question
+// @Accept json
+// @Produce 200 {object} types.Question "Retrospective Object"
+// @Failure 500 {string} string "Internal error"
+// @Router /question [post]
+func (ct *controller) createQuestion(c *gin.Context) {
+	retroIDcookie, err := c.Cookie("retrospective_id")
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not in any retrospective"})
+		return
+	}
+
+	retroID, err := uuid.Parse(retroIDcookie)
+	if err != nil {
+		log.Printf("error parsing retrospective_id: %s", err.Error())
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not in any retrospective"})
+		return
+	}
+
+	c.Set("retrospective_id", retroID)
+
+	var question *types.Question
+	if err := c.BindJSON(&question); err != nil {
+		log.Printf("error parsing body content: %s", err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid body content"})
+		return
+	}
+
+	err = ct.service.CreateQuestion(c, question)
+	if err != nil {
+		log.Printf("error creating retrospective: %s", err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
+
+	c.JSON(http.StatusOK, question)
+}
+
+// deleteRetrospective godoc
+//
+//	@Summary	Delete Retrospective by ID
+//	@Tags		Retrospective
+//	@Produce	json
+//	@Param		id	path		string				true	"Retrospective ID"
+//	@Success	200	{object}	types.Retrospective	"Retrospective Object"
+//	@Failure	400	{string}	string				"Invalid input"
+//	@Failure	404	{string}	string				"Not Found"
+//	@Failure	500	{string}	string				"Internal error"
+//	@Router		/retrospective/{id} [delete]
+func (ct *controller) deleteRetrospective(c *gin.Context) {
+	input := c.Param("id")
+	id, err := uuid.Parse(input)
+	if err != nil {
+		log.Printf("error parsing path ID: %s", err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+
+	retro, err := ct.service.DeleteRetrospective(c, id)
+	if err == sql.ErrNoRows {
+		log.Printf("retrospective ID %s not found", id.String())
+		c.JSON(http.StatusNotFound, gin.H{"error": "restrospective not found"})
+		return
+	}
+
+	if err != nil {
+		log.Printf("error deleting retrospective: %s", err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+
+	c.JSON(http.StatusOK, retro)
+}
+
+// subscribeChanges godoc
+//
+// @Summary Subscribe to changes via web socket
+// @Tags Question
+// @Accept json
+// @Produce 101
+// @Failure 500 {string} string "Internal error"
+// @Router /hello [get]
+func (ct *controller) subscribeChanges(c *gin.Context) {
+	var err error
+	retroIDcookie := c.Param("id")
+	if retroIDcookie == "" {
+		retroIDcookie, err = c.Cookie("retrospective_id")
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "not in any retrospective"})
+			return
+		}
+	}
+
+	retroID, err := uuid.Parse(retroIDcookie)
+	if err != nil {
+		log.Printf("error parsing retrospective_id: %s", err.Error())
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not in any retrospective"})
+		return
+	}
+
+	c.Set("retrospective_id", retroID)
+
+	err = ct.service.SubscribeChanges(c, c.Writer, c.Request)
+	if err != nil {
+		log.Printf("error creating pull request: %s", err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
+
+	c.JSON(http.StatusOK, "ok")
+}
+
 // UpdateRetrospective godoc
 //
 //	@Summary	Update Retrospective by ID
@@ -180,42 +296,6 @@ func (ct *controller) updateRetrospective(c *gin.Context) {
 	c.JSON(http.StatusOK, retro)
 }
 
-// deleteRetrospective godoc
-//
-//	@Summary	Delete Retrospective by ID
-//	@Tags		Retrospective
-//	@Produce	json
-//	@Param		id	path		string				true	"Retrospective ID"
-//	@Success	200	{object}	types.Retrospective	"Retrospective Object"
-//	@Failure	400	{string}	string				"Invalid input"
-//	@Failure	404	{string}	string				"Not Found"
-//	@Failure	500	{string}	string				"Internal error"
-//	@Router		/retrospective/{id} [delete]
-func (ct *controller) deleteRetrospective(c *gin.Context) {
-	input := c.Param("id")
-	id, err := uuid.Parse(input)
-	if err != nil {
-		log.Printf("error parsing path ID: %s", err.Error())
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-		return
-	}
-
-	retro, err := ct.service.DeleteRetrospective(c, id)
-	if err == sql.ErrNoRows {
-		log.Printf("retrospective ID %s not found", id.String())
-		c.JSON(http.StatusNotFound, gin.H{"error": "restrospective not found"})
-		return
-	}
-
-	if err != nil {
-		log.Printf("error deleting retrospective: %s", err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
-		return
-	}
-
-	c.JSON(http.StatusOK, retro)
-}
-
 // @license.name	MIT
 // @license.url	https://github.com/simple-retro/api/blob/master/LICENSE
 func Start() {
@@ -233,7 +313,12 @@ func Start() {
 		log.Fatalf("error creating repository: %s", err.Error())
 	}
 
-	service := service.New(repo)
+	wsrepo, err := repository.NewWebSocket()
+	if err != nil {
+		log.Fatalf("error creating repository: %s", err.Error())
+	}
+
+	service := service.New(repo, wsrepo)
 
 	controller := New(service)
 
@@ -245,6 +330,9 @@ func Start() {
 	router.GET("/retrospective/:id", controller.getRetrospective)
 	router.PATCH("/retrospective/:id", controller.updateRetrospective)
 	router.DELETE("/retrospective/:id", controller.deleteRetrospective)
+	router.POST("/question", controller.createQuestion)
+	router.GET("/hello", controller.subscribeChanges)
+	router.GET("/hello/:id", controller.subscribeChanges)
 
 	router.Run(fmt.Sprintf(":%d", config.Server.Port))
 }
