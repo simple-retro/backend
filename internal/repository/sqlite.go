@@ -1,11 +1,12 @@
 package repository
 
 import (
-	"api/config"
-	"api/types"
 	"context"
 	"database/sql"
 	"os"
+
+	"api/config"
+	"api/types"
 
 	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
