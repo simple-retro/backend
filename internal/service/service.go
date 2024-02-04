@@ -45,7 +45,7 @@ func (s *Service) DeleteRetrospective(ctx context.Context, id uuid.UUID) (*types
 	if err != nil {
 		return nil, err
 	}
-	_, err = s.repository.DeleteRetrospective(ctx, id)
+	_, err = s.webSocketRepository.DeleteRetrospective(ctx, id)
 	return retro, err
 }
 

@@ -129,25 +129,12 @@ func (ct *controller) getRetrospective(c *gin.Context) {
 // @Summary Create Question
 // @Tags Question
 // @Accept json
-// @Produce 200 {object} types.Question "Retrospective Object"
+// @Produce	json
+// @Param		question	body		types.Question	true	"Create Question"
+// @Success 200 {object} types.Question "Retrospective Object"
 // @Failure 500 {string} string "Internal error"
 // @Router /question [post]
 func (ct *controller) createQuestion(c *gin.Context) {
-	retroIDcookie, err := c.Cookie("retrospective_id")
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "not in any retrospective"})
-		return
-	}
-
-	retroID, err := uuid.Parse(retroIDcookie)
-	if err != nil {
-		log.Printf("error parsing retrospective_id: %s", err.Error())
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "not in any retrospective"})
-		return
-	}
-
-	c.Set("retrospective_id", retroID)
-
 	var question *types.Question
 	if err := c.BindJSON(&question); err != nil {
 		log.Printf("error parsing body content: %s", err.Error())
@@ -155,7 +142,7 @@ func (ct *controller) createQuestion(c *gin.Context) {
 		return
 	}
 
-	err = ct.service.CreateQuestion(c, question)
+	err := ct.service.CreateQuestion(c, question)
 	if err != nil {
 		log.Printf("error creating retrospective: %s", err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
@@ -211,23 +198,16 @@ func (ct *controller) deleteRetrospective(c *gin.Context) {
 // @Router /hello [get]
 func (ct *controller) subscribeChanges(c *gin.Context) {
 	var err error
-	retroIDcookie := c.Param("id")
-	if retroIDcookie == "" {
-		retroIDcookie, err = c.Cookie("retrospective_id")
+	retroIDparam := c.Param("id")
+	if retroIDparam != "" {
+		retroID, err := uuid.Parse(retroIDparam)
 		if err != nil {
+			log.Printf("error parsing retrospective_id: %s", err.Error())
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "not in any retrospective"})
 			return
 		}
+		c.Set("retrospective_id", retroID)
 	}
-
-	retroID, err := uuid.Parse(retroIDcookie)
-	if err != nil {
-		log.Printf("error parsing retrospective_id: %s", err.Error())
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "not in any retrospective"})
-		return
-	}
-
-	c.Set("retrospective_id", retroID)
 
 	err = ct.service.SubscribeChanges(c, c.Writer, c.Request)
 	if err != nil {
@@ -296,6 +276,25 @@ func (ct *controller) updateRetrospective(c *gin.Context) {
 	c.JSON(http.StatusOK, retro)
 }
 
+func Authenticate() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		retroIDcookie, err := c.Cookie("retrospective_id")
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "not in any retrospective"})
+			return
+		}
+
+		retroID, err := uuid.Parse(retroIDcookie)
+		if err != nil {
+			log.Printf("error parsing retrospective_id: %s", err.Error())
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "not in any retrospective"})
+			return
+		}
+
+		c.Set("retrospective_id", retroID)
+	}
+}
+
 // @license.name	MIT
 // @license.url	https://github.com/simple-retro/api/blob/master/LICENSE
 func Start() {
@@ -330,9 +329,12 @@ func Start() {
 	router.GET("/retrospective/:id", controller.getRetrospective)
 	router.PATCH("/retrospective/:id", controller.updateRetrospective)
 	router.DELETE("/retrospective/:id", controller.deleteRetrospective)
-	router.POST("/question", controller.createQuestion)
 	router.GET("/hello", controller.subscribeChanges)
 	router.GET("/hello/:id", controller.subscribeChanges)
+
+	authorized := router.Group("/")
+	authorized.Use(Authenticate())
+	authorized.POST("/question", controller.createQuestion)
 
 	router.Run(fmt.Sprintf(":%d", config.Server.Port))
 }
