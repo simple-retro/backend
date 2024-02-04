@@ -1,11 +1,10 @@
 package service
 
 import (
-	"context"
-	"net/http"
-
 	"api/internal/repository"
 	"api/types"
+	"context"
+	"net/http"
 
 	"github.com/google/uuid"
 )
@@ -82,6 +81,37 @@ func (s *Service) DeleteQuestion(ctx context.Context, id uuid.UUID) (*types.Ques
 	}
 	_, err = s.webSocketRepository.DeleteQuestion(ctx, id)
 	return question, err
+}
+
+func (s *Service) CreateAnswer(ctx context.Context, answer *types.Answer) error {
+	id, err := uuid.NewV7()
+	if err != nil {
+		return nil
+	}
+
+	answer.ID = id
+	err = s.repository.CreateAnswer(ctx, answer)
+	if err != nil {
+		return err
+	}
+	return s.webSocketRepository.CreateAnswer(ctx, answer)
+}
+
+func (s *Service) UpdateAnswer(ctx context.Context, answer *types.Answer) error {
+	err := s.repository.UpdateAnswer(ctx, answer)
+	if err != nil {
+		return err
+	}
+	return s.webSocketRepository.UpdateAnswer(ctx, answer)
+}
+
+func (s *Service) DeleteAnswer(ctx context.Context, id uuid.UUID) (*types.Answer, error) {
+	answer, err := s.repository.DeleteAnswer(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	_, err = s.webSocketRepository.DeleteRetrospective(ctx, id)
+	return answer, err
 }
 
 func (s *Service) SubscribeChanges(ctx context.Context, w http.ResponseWriter, r *http.Request) error {

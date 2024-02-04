@@ -19,13 +19,151 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/answer": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Answer"
+                ],
+                "summary": "Create Answer",
+                "parameters": [
+                    {
+                        "description": "Create Answer",
+                        "name": "question",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/types.AnswerCreateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Retrospective Object",
+                        "schema": {
+                            "$ref": "#/definitions/types.Answer"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/answer/{id}": {
+            "delete": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Answer"
+                ],
+                "summary": "Delete Answer",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Answer ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Answer Object",
+                        "schema": {
+                            "$ref": "#/definitions/types.Answer"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Answer"
+                ],
+                "summary": "Update Answer",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Answer ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update Answer",
+                        "name": "answer",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/types.AnswerCreateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Answer Object",
+                        "schema": {
+                            "$ref": "#/definitions/types.Answer"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/health": {
             "get": {
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    ""
+                    "Healthcheck"
                 ],
                 "summary": "Show API health",
                 "responses": {
@@ -53,9 +191,18 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Question"
+                    "Websocket"
                 ],
                 "summary": "Subscribe to changes via web socket",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Repository ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
                 "responses": {
                     "500": {
                         "description": "Internal error",
@@ -416,6 +563,17 @@ const docTemplate = `{
                 },
                 "position": {
                     "type": "integer"
+                },
+                "text": {
+                    "type": "string"
+                }
+            }
+        },
+        "types.AnswerCreateRequest": {
+            "type": "object",
+            "properties": {
+                "question_id": {
+                    "type": "string"
                 },
                 "text": {
                     "type": "string"

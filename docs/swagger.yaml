@@ -17,6 +17,13 @@ definitions:
       text:
         type: string
     type: object
+  types.AnswerCreateRequest:
+    properties:
+      question_id:
+        type: string
+      text:
+        type: string
+    type: object
   types.Question:
     properties:
       answers:
@@ -59,6 +66,96 @@ info:
     name: MIT
     url: https://github.com/simple-retro/api/blob/master/LICENSE
 paths:
+  /answer:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Create Answer
+        in: body
+        name: question
+        required: true
+        schema:
+          $ref: '#/definitions/types.AnswerCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Retrospective Object
+          schema:
+            $ref: '#/definitions/types.Answer'
+        "400":
+          description: Invalid input
+          schema:
+            type: string
+        "500":
+          description: Internal error
+          schema:
+            type: string
+      summary: Create Answer
+      tags:
+      - Answer
+  /answer/{id}:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: Answer ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Answer Object
+          schema:
+            $ref: '#/definitions/types.Answer'
+        "400":
+          description: Invalid input
+          schema:
+            type: string
+        "500":
+          description: Internal error
+          schema:
+            type: string
+      summary: Delete Answer
+      tags:
+      - Answer
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Answer ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Update Answer
+        in: body
+        name: answer
+        required: true
+        schema:
+          $ref: '#/definitions/types.AnswerCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Answer Object
+          schema:
+            $ref: '#/definitions/types.Answer'
+        "400":
+          description: Invalid input
+          schema:
+            type: string
+        "500":
+          description: Internal error
+          schema:
+            type: string
+      summary: Update Answer
+      tags:
+      - Answer
   /health:
     get:
       produces:
@@ -74,11 +171,17 @@ paths:
             type: string
       summary: Show API health
       tags:
-      - ""
+      - Healthcheck
   /hello:
     get:
       consumes:
       - application/json
+      parameters:
+      - description: Repository ID
+        in: path
+        name: id
+        required: true
+        type: string
       produces:
       - application/json
       responses:
@@ -88,7 +191,7 @@ paths:
             type: string
       summary: Subscribe to changes via web socket
       tags:
-      - Question
+      - Websocket
   /question:
     post:
       consumes:

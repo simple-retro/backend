@@ -1,12 +1,11 @@
 package repository
 
 import (
+	"api/types"
 	"context"
 	"fmt"
 	"log"
 	"net/http"
-
-	"api/types"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -104,14 +103,14 @@ func (w *WebSocket) CreateQuestion(ctx context.Context, question *types.Question
 }
 
 // DeleteAnswer implements Repository.
-func (w *WebSocket) DeleteAnswer(ctx context.Context, answer *types.Answer) error {
+func (w *WebSocket) DeleteAnswer(ctx context.Context, id uuid.UUID) (*types.Answer, error) {
 	message := types.WebSocketMessage{
 		Action: "delete",
 		Type:   "answer",
-		Value:  answer,
+		Value:  types.Answer{ID: id},
 	}
 
-	return w.sendMessageToRetro(ctx, message)
+	return nil, w.sendMessageToRetro(ctx, message)
 }
 
 // DeleteQuestion implements Repository.

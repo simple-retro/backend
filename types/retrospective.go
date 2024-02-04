@@ -20,7 +20,7 @@ type Question struct {
 type Answer struct {
 	ID       uuid.UUID `json:"id,omitempty"`
 	Text     string    `json:"text,omitempty"`
-	Position int       `json:"position,omitempty"`
+	Position int       `json:"position"`
 }
 
 type RetrospectiveCreateRequest struct {
@@ -30,4 +30,9 @@ type RetrospectiveCreateRequest struct {
 
 type QuestionCreateRequest struct {
 	Text string `json:"text,omitempty"`
+}
+
+type AnswerCreateRequest struct {
+	QuestionID uuid.UUID `json:"question_id,omitempty"`
+	Text       string    `json:"text,omitempty"`
 }
