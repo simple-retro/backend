@@ -8,6 +8,46 @@ definitions:
       name:
         type: string
     type: object
+  types.Answer:
+    properties:
+      id:
+        type: string
+      position:
+        type: integer
+      text:
+        type: string
+    type: object
+  types.Question:
+    properties:
+      answers:
+        items:
+          $ref: '#/definitions/types.Answer'
+        type: array
+      id:
+        type: string
+      text:
+        type: string
+    type: object
+  types.Retrospective:
+    properties:
+      description:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      questions:
+        items:
+          $ref: '#/definitions/types.Question'
+        type: array
+    type: object
+  types.RetrospectiveCreateRequest:
+    properties:
+      description:
+        type: string
+      name:
+        type: string
+    type: object
 info:
   contact: {}
   license:
@@ -16,8 +56,6 @@ info:
 paths:
   /health:
     get:
-      consumes:
-      - application/json
       produces:
       - application/json
       responses:
@@ -32,4 +70,127 @@ paths:
       summary: Show API health
       tags:
       - ""
+  /retrospective:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Create Retrospective
+        in: body
+        name: retrospective
+        required: true
+        schema:
+          $ref: '#/definitions/types.RetrospectiveCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Retrospective Object
+          schema:
+            $ref: '#/definitions/types.Retrospective'
+        "400":
+          description: Invalid input
+          schema:
+            type: string
+        "500":
+          description: Internal error
+          schema:
+            type: string
+      summary: Create Retrospective
+      tags:
+      - Retrospective
+  /retrospective/{id}:
+    delete:
+      parameters:
+      - description: Retrospective ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Retrospective Object
+          schema:
+            $ref: '#/definitions/types.Retrospective'
+        "400":
+          description: Invalid input
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+        "500":
+          description: Internal error
+          schema:
+            type: string
+      summary: Delete Retrospective by ID
+      tags:
+      - Retrospective
+    get:
+      parameters:
+      - description: Retrospective ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Retrospective Object
+          schema:
+            $ref: '#/definitions/types.Retrospective'
+        "400":
+          description: Invalid input
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+        "500":
+          description: Internal error
+          schema:
+            type: string
+      summary: Get Retrospective by ID
+      tags:
+      - Retrospective
+    patch:
+      parameters:
+      - description: Retrospective ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Update Retrospective
+        in: body
+        name: retrospective
+        required: true
+        schema:
+          $ref: '#/definitions/types.RetrospectiveCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Retrospective Object
+          schema:
+            $ref: '#/definitions/types.Retrospective'
+        "400":
+          description: Invalid input
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+        "500":
+          description: Internal error
+          schema:
+            type: string
+      summary: Update Retrospective by ID
+      tags:
+      - Retrospective
 swagger: "2.0"

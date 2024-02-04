@@ -22,3 +22,8 @@ type Answer struct {
 	Text     string    `json:"text,omitempty"`
 	Position int       `json:"position,omitempty"`
 }
+
+type RetrospectiveCreateRequest struct {
+	Name        string `json:"name,omitempty"`
+	Description string `json:"description,omitempty"`
+}
