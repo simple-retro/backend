@@ -125,6 +125,10 @@ func (w *WebSocket) DeleteQuestion(ctx context.Context, id uuid.UUID) (*types.Qu
 	return nil, w.sendMessageToRetro(ctx, message)
 }
 
+func (s *WebSocket) GetAllRetrospectives(ctx context.Context) ([]uuid.UUID, error) {
+	panic("unimplemented")
+}
+
 // DeleteRetrospective implements Repository.
 func (w *WebSocket) CreateRetrospective(ctx context.Context, retro *types.Retrospective) error {
 	w.connections[retro.ID] = make([]*websocket.Conn, 0)

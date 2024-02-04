@@ -153,6 +153,26 @@ func (s *SQLite) DeleteRetrospective(ctx context.Context, id uuid.UUID) (*types.
 	return retro, nil
 }
 
+func (s *SQLite) GetAllRetrospectives(ctx context.Context) ([]uuid.UUID, error) {
+	sqlQuery := `SELECT id FROM retrospectives`
+	rows, err := s.conn.Query(sqlQuery)
+	if err != nil {
+		return nil, err
+	}
+
+	IDs := make([]uuid.UUID, 0)
+
+	for rows.Next() {
+		var ID uuid.UUID
+		err := rows.Scan(&ID)
+		if err != nil {
+			return nil, err
+		}
+		IDs = append(IDs, ID)
+	}
+	return IDs, nil
+}
+
 func (s *SQLite) GetRetrospective(ctx context.Context, id uuid.UUID) (*types.Retrospective, error) {
 	retro := &types.Retrospective{
 		ID: id,

@@ -10,6 +10,7 @@ import (
 )
 
 type Repository interface {
+	GetAllRetrospectives(ctx context.Context) ([]uuid.UUID, error)
 	GetRetrospective(ctx context.Context, id uuid.UUID) (*types.Retrospective, error)
 	CreateRetrospective(ctx context.Context, retro *types.Retrospective) error
 	UpdateRetrospective(ctx context.Context, retro *types.Retrospective) error

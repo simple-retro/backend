@@ -87,3 +87,19 @@ func (s *Service) DeleteQuestion(ctx context.Context, id uuid.UUID) (*types.Ques
 func (s *Service) SubscribeChanges(ctx context.Context, w http.ResponseWriter, r *http.Request) error {
 	return s.webSocketRepository.AddConnection(ctx, w, r)
 }
+
+func (s *Service) LoadAllRetrospectives(ctx context.Context) error {
+	IDs, err := s.repository.GetAllRetrospectives(ctx)
+	if err != nil {
+		return err
+	}
+
+	for _, ID := range IDs {
+		err := s.webSocketRepository.CreateRetrospective(ctx, &types.Retrospective{ID: ID})
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
