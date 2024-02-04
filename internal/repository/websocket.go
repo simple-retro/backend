@@ -31,8 +31,6 @@ func (ws *WebSocket) AddConnection(ctx context.Context, w http.ResponseWriter, r
 		return fmt.Errorf("retrospective id not found")
 	}
 
-	fmt.Println(retrospectiveID)
-
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return err
@@ -117,14 +115,14 @@ func (w *WebSocket) DeleteAnswer(ctx context.Context, answer *types.Answer) erro
 }
 
 // DeleteQuestion implements Repository.
-func (w *WebSocket) DeleteQuestion(ctx context.Context, question *types.Question) error {
+func (w *WebSocket) DeleteQuestion(ctx context.Context, id uuid.UUID) (*types.Question, error) {
 	message := types.WebSocketMessage{
 		Action: "delete",
 		Type:   "question",
-		Value:  question,
+		Value:  types.Object{ID: id},
 	}
 
-	return w.sendMessageToRetro(ctx, message)
+	return nil, w.sendMessageToRetro(ctx, message)
 }
 
 // DeleteRetrospective implements Repository.
