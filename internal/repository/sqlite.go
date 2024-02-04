@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"os"
 
 	"api/config"
@@ -18,7 +19,7 @@ type SQLite struct {
 
 func NewSQLite() (*SQLite, error) {
 	conf := config.Get()
-	db, err := sql.Open("sqlite3", conf.Database.Address)
+	db, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?_foreign_keys=on", conf.Database.Address))
 	if err != nil {
 		return nil, err
 	}
@@ -214,15 +215,92 @@ func (s *SQLite) GetRetrospective(ctx context.Context, id uuid.UUID) (*types.Ret
 }
 
 func (s *SQLite) CreateQuestion(ctx context.Context, question *types.Question) error {
-	return nil
+	retrospectiveID, ok := ctx.Value("retrospective_id").(uuid.UUID)
+	if !ok {
+		return fmt.Errorf("retrospective id not found")
+	}
+	sql := `INSERT INTO questions (id, text, retrospective_id) VALUES ($1, $2, $3)`
+	_, err := s.conn.Exec(sql,
+		question.ID,
+		question.Text,
+		retrospectiveID,
+	)
+	return err
 }
 
 func (s *SQLite) UpdateQuestion(ctx context.Context, question *types.Question) error {
-	return nil
+	retrospectiveID, ok := ctx.Value("retrospective_id").(uuid.UUID)
+	if !ok {
+		return fmt.Errorf("retrospective id not found")
+	}
+
+	foundQuestion := &types.Question{
+		ID: question.ID,
+	}
+
+	sqlQuery := `SELECT text FROM questions WHERE id = $1 and retrospective_id = $2`
+	err := s.conn.QueryRow(sqlQuery, foundQuestion.ID, retrospectiveID).Scan(
+		&foundQuestion.Text,
+	)
+	if err != nil {
+		return err
+	}
+
+	if len(question.Text) == 0 {
+		question.Text = foundQuestion.Text
+	}
+
+	sqlQuery = `UPDATE questions SET text = $1 WHERE id = $2 and retrospective_id = $3`
+	_, err = s.conn.Exec(sqlQuery,
+		question.Text,
+		question.ID,
+		retrospectiveID,
+	)
+
+	return err
 }
 
-func (s *SQLite) DeleteQuestion(ctx context.Context, question *types.Question) error {
-	return nil
+func (s *SQLite) DeleteQuestion(ctx context.Context, id uuid.UUID) (*types.Question, error) {
+	retrospectiveID, ok := ctx.Value("retrospective_id").(uuid.UUID)
+	if !ok {
+		return nil, fmt.Errorf("retrospective id not found")
+	}
+	question := &types.Question{
+		ID: id,
+	}
+
+	sqlQuery := `SELECT text FROM questions WHERE id = $1 and retrospective_id = $2`
+	err := s.conn.QueryRow(sqlQuery, id, retrospectiveID).Scan(
+		&question.Text,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	tx, err := s.conn.Begin()
+	if err != nil {
+		return question, err
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+			return
+		}
+		err = tx.Commit()
+	}()
+
+	// Delete answers associated with questions of the retrospective
+	sqlQuery = `DELETE FROM answers WHERE question_id = $1`
+	_, err = tx.Exec(sqlQuery, id)
+	if err != nil {
+		return question, err
+	}
+
+	// Delete questions associated with the retrospective
+	sqlQuery = `DELETE FROM questions WHERE id = $1`
+	_, err = tx.Exec(sqlQuery, id)
+
+	return question, nil
 }
 
 func (s *SQLite) CreateAnswer(ctx context.Context, answer *types.Answer) error {

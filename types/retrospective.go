@@ -27,3 +27,7 @@ type RetrospectiveCreateRequest struct {
 	Name        string `json:"name,omitempty"`
 	Description string `json:"description,omitempty"`
 }
+
+type QuestionCreateRequest struct {
+	Text string `json:"text,omitempty"`
+}

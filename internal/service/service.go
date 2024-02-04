@@ -54,11 +54,34 @@ func (s *Service) UpdateRetrospective(ctx context.Context, retro *types.Retrospe
 }
 
 func (s *Service) CreateQuestion(ctx context.Context, question *types.Question) error {
-	err := s.repository.CreateQuestion(ctx, question)
+	id, err := uuid.NewV7()
+	if err != nil {
+		return err
+	}
+
+	question.ID = id
+	err = s.repository.CreateQuestion(ctx, question)
 	if err != nil {
 		return err
 	}
 	return s.webSocketRepository.CreateQuestion(ctx, question)
+}
+
+func (s *Service) UpdateQuestion(ctx context.Context, question *types.Question) error {
+	err := s.repository.UpdateQuestion(ctx, question)
+	if err != nil {
+		return err
+	}
+	return s.webSocketRepository.UpdateQuestion(ctx, question)
+}
+
+func (s *Service) DeleteQuestion(ctx context.Context, id uuid.UUID) (*types.Question, error) {
+	question, err := s.repository.DeleteQuestion(ctx, id)
+	if err != nil {
+		return question, err
+	}
+	_, err = s.webSocketRepository.DeleteQuestion(ctx, id)
+	return question, err
 }
 
 func (s *Service) SubscribeChanges(ctx context.Context, w http.ResponseWriter, r *http.Request) error {

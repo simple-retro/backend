@@ -28,6 +28,11 @@ definitions:
       text:
         type: string
     type: object
+  types.QuestionCreateRequest:
+    properties:
+      text:
+        type: string
+    type: object
   types.Retrospective:
     properties:
       description:
@@ -70,6 +75,110 @@ paths:
       summary: Show API health
       tags:
       - ""
+  /hello:
+    get:
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      responses:
+        "500":
+          description: Internal error
+          schema:
+            type: string
+      summary: Subscribe to changes via web socket
+      tags:
+      - Question
+  /question:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Create Question
+        in: body
+        name: question
+        required: true
+        schema:
+          $ref: '#/definitions/types.QuestionCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Retrospective Object
+          schema:
+            $ref: '#/definitions/types.Question'
+        "500":
+          description: Internal error
+          schema:
+            type: string
+      summary: Create Question
+      tags:
+      - Question
+  /question/{id}:
+    delete:
+      parameters:
+      - description: Question ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Question Object
+          schema:
+            $ref: '#/definitions/types.Question'
+        "400":
+          description: Invalid input
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+        "500":
+          description: Internal error
+          schema:
+            type: string
+      summary: Delete Question by ID
+      tags:
+      - Question
+    patch:
+      parameters:
+      - description: Question ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Update Question
+        in: body
+        name: retrospective
+        required: true
+        schema:
+          $ref: '#/definitions/types.QuestionCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Question Object
+          schema:
+            $ref: '#/definitions/types.Retrospective'
+        "400":
+          description: Invalid input
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+        "500":
+          description: Internal error
+          schema:
+            type: string
+      summary: Update Question by ID
+      tags:
+      - Question
   /retrospective:
     post:
       consumes:

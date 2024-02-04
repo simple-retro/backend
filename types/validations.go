@@ -38,3 +38,15 @@ func (r *RetrospectiveCreateRequest) ValidateUpdate() error {
 
 	return nil
 }
+
+func (r *QuestionCreateRequest) ValidateCreate() error {
+	if len(r.Text) == 0 {
+		return fmt.Errorf("question text cannot be empty")
+	}
+
+	if len(r.Text) > DESC_LIMIT {
+		return fmt.Errorf("question name too big. Limit is %d", NAME_LIMIT)
+	}
+
+	return nil
+}
