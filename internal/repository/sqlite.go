@@ -330,7 +330,7 @@ func (s *SQLite) CreateAnswer(ctx context.Context, answer *types.Answer) error {
 
 	sqlQuery := `INSERT INTO answers 
 								(id, text, question_id, position) 
-								VALUES ($1, $2, $3, (SELECT MAX(position) + 1 FROM answers WHERE question_id = $3)) returning position`
+								VALUES ($1, $2, $3, (SELECT IFNULL(MAX(position),0) + 1 FROM answers WHERE question_id = $3)) returning position`
 	err := s.conn.QueryRow(sqlQuery,
 		answer.ID,
 		answer.Text,
