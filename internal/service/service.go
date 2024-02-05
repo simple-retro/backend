@@ -110,7 +110,7 @@ func (s *Service) DeleteAnswer(ctx context.Context, id uuid.UUID) (*types.Answer
 	if err != nil {
 		return nil, err
 	}
-	_, err = s.webSocketRepository.DeleteRetrospective(ctx, id)
+	_, err = s.webSocketRepository.DeleteAnswer(ctx, id)
 	return answer, err
 }
 
