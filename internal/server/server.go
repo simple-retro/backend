@@ -1,15 +1,14 @@
 package server
 
 import (
-	"database/sql"
-	"fmt"
-	"log"
-	"net/http"
-
 	"api/config"
 	"api/docs"
 	"api/internal/service"
 	"api/types"
+	"database/sql"
+	"fmt"
+	"log"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -27,10 +26,50 @@ func New(s *service.Service) *controller {
 	}
 }
 
+func CORSMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Header("Access-Control-Allow-Origin", "http://simple-retro.ephemeral.dev.br")
+		c.Header("Access-Control-Allow-Credentials", "true")
+		c.Header(
+			"Access-Control-Allow-Headers",
+			"Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With",
+		)
+		c.Header("Access-Control-Allow-Methods", "POST,HEAD,PATCH, OPTIONS, GET, PUT")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+
+		c.Next()
+	}
+}
+
+func Authenticate() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		retroIDcookie, err := c.Cookie("retrospective_id")
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "not in any retrospective"})
+			c.Abort()
+			return
+		}
+
+		retroID, err := uuid.Parse(retroIDcookie)
+		if err != nil {
+			log.Printf("error parsing retrospective_id: %s", err.Error())
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "not in any retrospective"})
+			c.Abort()
+			return
+		}
+
+		c.Set("retrospective_id", retroID)
+	}
+}
+
 // health godoc
 //
 //	@Summary	Show API health
-//	@Tags
+//	@Tags Healthcheck
 //	@Produce	json
 //	@Success	200	{object}	health	"API metrics"
 //	@Failure	500	{string}	string	"Internal error"
@@ -354,10 +393,10 @@ func (ct *controller) deleteQuestion(c *gin.Context) {
 // subscribeChanges godoc
 //
 //	@Summary	Subscribe to changes via web socket
-//	@Tags		Question
+//	@Tags		Websocket
 //	@Accept		json
 //	@Produce	json
-//	@Param		id	path		string			true	"Repository ID"
+//	@Param		id	path		string	true	"Repository ID"
 //	@Failure	500	{string}	string	"Internal error"
 //	@Router		/hello [get]
 func (ct *controller) subscribeChanges(c *gin.Context) {
@@ -387,39 +426,133 @@ func (ct *controller) subscribeChanges(c *gin.Context) {
 	c.JSON(http.StatusOK, "ok")
 }
 
-func CORSMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "http://localhost:5173")
-		c.Header("Access-Control-Allow-Credentials", "true")
-		c.Header("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
-		c.Header("Access-Control-Allow-Methods", "POST,HEAD,PATCH, OPTIONS, GET, PUT")
-
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(204)
-			return
-		}
-
-		c.Next()
+// createAnswer godoc
+//
+//	@Summary	Create Answer
+//	@Tags		Answer
+//	@Accept		json
+//	@Produce	json
+//	@Param		question	body		types.AnswerCreateRequest	true	"Create Answer"
+//	@Success	200			{object}	types.Answer				"Retrospective Object"
+//	@Failure	400			{string}	string						"Invalid input"
+//	@Failure	500			{string}	string						"Internal error"
+//	@Router		/answer [post]
+func (ct *controller) createAnswer(c *gin.Context) {
+	var input *types.AnswerCreateRequest
+	if err := c.BindJSON(&input); err != nil {
+		log.Printf("error parsing body content: %s", err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid body content"})
+		return
 	}
+
+	if err := input.ValidateCreate(); err != nil {
+		log.Printf("invalid input: %s", err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.Set("question_id", input.QuestionID)
+	answer := &types.Answer{
+		Text: input.Text,
+	}
+
+	err := ct.service.CreateAnswer(c, answer)
+	if err != nil {
+		log.Printf("error creating answer: %s", err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
+
+	c.JSON(http.StatusOK, answer)
 }
 
-func Authenticate() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		retroIDcookie, err := c.Cookie("retrospective_id")
-		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "not in any retrospective"})
-			return
-		}
-
-		retroID, err := uuid.Parse(retroIDcookie)
-		if err != nil {
-			log.Printf("error parsing retrospective_id: %s", err.Error())
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "not in any retrospective"})
-			return
-		}
-
-		c.Set("retrospective_id", retroID)
+// updateAnswer godoc
+//
+//	@Summary	Update Answer
+//	@Tags		Answer
+//	@Accept		json
+//	@Produce	json
+//	@Param		id		path		string						true	"Answer ID"
+//	@Param		answer	body		types.AnswerCreateRequest	true	"Update Answer"
+//	@Success	200		{object}	types.Answer				"Answer Object"
+//	@Failure	400		{string}	string						"Invalid input"
+//	@Failure	500		{string}	string						"Internal error"
+//	@Router		/answer/{id} [patch]
+func (ct *controller) updateAnswer(c *gin.Context) {
+	input := c.Param("id")
+	id, err := uuid.Parse(input)
+	if err != nil {
+		log.Printf("error parsing path question ID: %s", err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid question id"})
+		return
 	}
+
+	var inputAnswer *types.AnswerCreateRequest
+	if err := c.BindJSON(&inputAnswer); err != nil {
+		log.Printf("error parsing body content: %s", err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid body content"})
+		return
+	}
+
+	if err := inputAnswer.ValidateCreate(); err != nil {
+		log.Printf("invalid input: %s", err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.Set("question_id", inputAnswer.QuestionID)
+	answer := &types.Answer{
+		ID:   id,
+		Text: inputAnswer.Text,
+	}
+
+	err = ct.service.UpdateAnswer(c, answer)
+	if err == sql.ErrNoRows {
+	}
+
+	if err != nil {
+		log.Printf("error deleting answer: %s", err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
+
+	c.JSON(http.StatusOK, answer)
+}
+
+// deleteAnswer godoc
+//
+//	@Summary	Delete Answer
+//	@Tags		Answer
+//	@Accept		json
+//	@Produce	json
+//	@Param		id	path		string			true	"Answer ID"
+//	@Success	200	{object}	types.Answer	"Answer Object"
+//	@Failure	400	{string}	string			"Invalid input"
+//	@Failure	500	{string}	string			"Internal error"
+//	@Router		/answer/{id} [delete]
+func (ct *controller) deleteAnswer(c *gin.Context) {
+	input := c.Param("id")
+	id, err := uuid.Parse(input)
+	if err != nil {
+		log.Printf("error parsing path question ID: %s", err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid question id"})
+		return
+	}
+
+	answer, err := ct.service.DeleteAnswer(c, id)
+	if err == sql.ErrNoRows {
+		log.Printf("answer ID %s not found", id.String())
+		c.JSON(http.StatusNotFound, gin.H{"error": "answer not found"})
+		return
+	}
+
+	if err != nil {
+		log.Printf("error deleting answer: %s", err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
+
+	c.JSON(http.StatusOK, answer)
 }
 
 // @license.name	MIT
@@ -429,9 +562,10 @@ func (c *controller) Start() {
 
 	// Swagger
 	docs.SwaggerInfo.Title = config.Name
-	docs.SwaggerInfo.Description = "API service to Collabfy project"
+	docs.SwaggerInfo.Description = "API service to Simple Retro project"
 	docs.SwaggerInfo.Version = "1.0"
-	docs.SwaggerInfo.Host = "127.0.0.1:8080"
+	docs.SwaggerInfo.Host = fmt.Sprintf("simple-retro.ephemeral.dev.br:%d", config.Server.Port)
+	docs.SwaggerInfo.BasePath = "/api"
 	docs.SwaggerInfo.Schemes = []string{"http", "https"}
 
 	router := gin.Default()
@@ -453,6 +587,10 @@ func (c *controller) Start() {
 	authorized.POST("/question", c.createQuestion)
 	authorized.PATCH("/question/:id", c.updateQuestion)
 	authorized.DELETE("/question/:id", c.deleteQuestion)
+
+	authorized.POST("/answer", c.createAnswer)
+	authorized.PATCH("/answer/:id", c.updateAnswer)
+	authorized.DELETE("/answer/:id", c.deleteAnswer)
 
 	router.Run(fmt.Sprintf(":%d", config.Server.Port))
 }

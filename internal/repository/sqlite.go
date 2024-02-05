@@ -1,13 +1,12 @@
 package repository
 
 import (
+	"api/config"
+	"api/types"
 	"context"
 	"database/sql"
 	"fmt"
 	"os"
-
-	"api/config"
-	"api/types"
 
 	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
@@ -324,13 +323,91 @@ func (s *SQLite) DeleteQuestion(ctx context.Context, id uuid.UUID) (*types.Quest
 }
 
 func (s *SQLite) CreateAnswer(ctx context.Context, answer *types.Answer) error {
-	return nil
+	questionID, ok := ctx.Value("question_id").(uuid.UUID)
+	if !ok {
+		return fmt.Errorf("retrospective id not found")
+	}
+
+	sqlQuery := `INSERT INTO answers 
+								(id, text, question_id, position) 
+								VALUES ($1, $2, $3, (SELECT MAX(position) + 1 FROM answers WHERE question_id = $3)) returning position`
+	err := s.conn.QueryRow(sqlQuery,
+		answer.ID,
+		answer.Text,
+		questionID,
+	).Scan(
+		&answer.Position,
+	)
+	return err
 }
 
 func (s *SQLite) UpdateAnswer(ctx context.Context, answer *types.Answer) error {
-	return nil
+	questionID, ok := ctx.Value("question_id").(uuid.UUID)
+	if !ok {
+		return fmt.Errorf("question id not found")
+	}
+
+	foundAnswer := &types.Answer{
+		ID: answer.ID,
+	}
+
+	sqlQuery := `SELECT text, position FROM answers WHERE id = $1 and question_id = $2`
+	err := s.conn.QueryRow(sqlQuery,
+		foundAnswer.ID,
+		questionID,
+	).Scan(
+		&foundAnswer.Text,
+		&foundAnswer.Position,
+	)
+	if err != nil {
+		return err
+	}
+
+	if len(answer.Text) == 0 {
+		answer.Text = foundAnswer.Text
+	}
+
+	sqlQuery = `UPDATE answers SET text = $1 WHERE id = $2 and question_id = $3`
+	_, err = s.conn.Exec(sqlQuery,
+		answer.Text,
+		answer.ID,
+		questionID,
+	)
+
+	return err
 }
 
-func (s *SQLite) DeleteAnswer(ctx context.Context, answer *types.Answer) error {
-	return nil
+func (s *SQLite) DeleteAnswer(ctx context.Context, id uuid.UUID) (*types.Answer, error) {
+	answer := &types.Answer{
+		ID: id,
+	}
+
+	sqlQuery := `SELECT text, position FROM answers WHERE id = $1`
+	err := s.conn.QueryRow(sqlQuery, id).Scan(
+		&answer.Text,
+		&answer.Position,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	tx, err := s.conn.Begin()
+	if err != nil {
+		return answer, err
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+			return
+		}
+		err = tx.Commit()
+	}()
+
+	sqlQuery = `DELETE FROM answers WHERE id = $1`
+	_, err = tx.Exec(sqlQuery, id)
+	if err != nil {
+		return answer, err
+	}
+
+	return answer, nil
 }
