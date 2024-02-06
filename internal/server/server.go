@@ -158,6 +158,7 @@ func (ct *controller) getRetrospective(c *gin.Context) {
 		return
 	}
 
+	c.SetSameSite(http.SameSiteNoneMode)
 	c.SetCookie("retrospective_id", id.String(), 0, "/", "", true, false)
 	c.JSON(http.StatusOK, retro)
 }
