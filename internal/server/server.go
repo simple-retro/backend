@@ -28,7 +28,8 @@ func New(s *service.Service) *controller {
 
 func CORSMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "http://127.0.0.1:5173")
+		config := config.Get()
+		c.Header("Access-Control-Allow-Origin", fmt.Sprintf("http://%s:5173", config.Server.Host))
 		c.Header("Access-Control-Allow-Credentials", "true")
 		c.Header(
 			"Access-Control-Allow-Headers",
@@ -452,9 +453,9 @@ func (ct *controller) createAnswer(c *gin.Context) {
 		return
 	}
 
-	c.Set("question_id", input.QuestionID)
 	answer := &types.Answer{
-		Text: input.Text,
+		QuestionID: input.QuestionID,
+		Text:       input.Text,
 	}
 
 	err := ct.service.CreateAnswer(c, answer)
@@ -501,10 +502,10 @@ func (ct *controller) updateAnswer(c *gin.Context) {
 		return
 	}
 
-	c.Set("question_id", inputAnswer.QuestionID)
 	answer := &types.Answer{
-		ID:   id,
-		Text: inputAnswer.Text,
+		ID:         id,
+		QuestionID: inputAnswer.QuestionID,
+		Text:       inputAnswer.Text,
 	}
 
 	err = ct.service.UpdateAnswer(c, answer)
@@ -512,7 +513,7 @@ func (ct *controller) updateAnswer(c *gin.Context) {
 	}
 
 	if err != nil {
-		log.Printf("error deleting answer: %s", err.Error())
+		log.Printf("error updating answer: %s", err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
@@ -565,7 +566,7 @@ func (c *controller) Start() {
 	docs.SwaggerInfo.Title = config.Name
 	docs.SwaggerInfo.Description = "API service to Simple Retro project"
 	docs.SwaggerInfo.Version = "1.0"
-	docs.SwaggerInfo.Host = fmt.Sprintf("simple-retro.ephemeral.dev.br:%d", config.Server.Port)
+	docs.SwaggerInfo.Host = fmt.Sprintf("%s:%d", config.Server.Host, config.Server.Port)
 	docs.SwaggerInfo.BasePath = "/api"
 	docs.SwaggerInfo.Schemes = []string{"http", "https"}
 
