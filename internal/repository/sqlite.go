@@ -104,7 +104,8 @@ func (s *SQLite) UpdateRetrospective(ctx context.Context, retro *types.Retrospec
 
 func (s *SQLite) DeleteRetrospective(ctx context.Context, id uuid.UUID) (*types.Retrospective, error) {
 	retro := &types.Retrospective{
-		ID: id,
+		ID:        id,
+		Questions: []types.Question{},
 	}
 
 	sqlQuery := `SELECT name, description FROM retrospectives WHERE id = $1`
@@ -174,7 +175,8 @@ func (s *SQLite) GetAllRetrospectives(ctx context.Context) ([]uuid.UUID, error) 
 
 func (s *SQLite) GetRetrospective(ctx context.Context, id uuid.UUID) (*types.Retrospective, error) {
 	retro := &types.Retrospective{
-		ID: id,
+		ID:        id,
+		Questions: []types.Question{},
 	}
 
 	sqlQuery := `SELECT name, description FROM retrospectives WHERE id = $1`
@@ -195,7 +197,9 @@ func (s *SQLite) GetRetrospective(ctx context.Context, id uuid.UUID) (*types.Ret
 	defer rows.Close()
 
 	for rows.Next() {
-		var question types.Question
+		question := types.Question{
+			Answers: []types.Answer{},
+		}
 		err := rows.Scan(
 			&question.ID,
 			&question.Text,
@@ -285,7 +289,8 @@ func (s *SQLite) DeleteQuestion(ctx context.Context, id uuid.UUID) (*types.Quest
 		return nil, fmt.Errorf("retrospective id not found")
 	}
 	question := &types.Question{
-		ID: id,
+		ID:      id,
+		Answers: []types.Answer{},
 	}
 
 	sqlQuery := `SELECT text FROM questions WHERE id = $1 and retrospective_id = $2`

@@ -114,6 +114,7 @@ func (ct *controller) createRetrospective(c *gin.Context) {
 	retrospective := types.Retrospective{
 		Name:        input.Name,
 		Description: input.Description,
+		Questions:   []types.Question{},
 	}
 
 	err := ct.service.CreateRetrospective(c, &retrospective)
@@ -202,6 +203,7 @@ func (ct *controller) updateRetrospective(c *gin.Context) {
 		ID:          id,
 		Name:        inputRetro.Name,
 		Description: inputRetro.Description,
+		Questions:   []types.Question{},
 	}
 
 	err = ct.service.UpdateRetrospective(c, retro)
@@ -282,7 +284,8 @@ func (ct *controller) createQuestion(c *gin.Context) {
 	}
 
 	question := &types.Question{
-		Text: input.Text,
+		Text:    input.Text,
+		Answers: []types.Answer{},
 	}
 
 	err := ct.service.CreateQuestion(c, question)
@@ -335,8 +338,9 @@ func (ct *controller) updateQuestion(c *gin.Context) {
 	}
 
 	question := &types.Question{
-		ID:   id,
-		Text: inputQuestion.Text,
+		ID:      id,
+		Text:    inputQuestion.Text,
+		Answers: []types.Answer{},
 	}
 
 	err = ct.service.UpdateQuestion(c, question)
