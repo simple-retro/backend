@@ -19,7 +19,7 @@ type Repository interface {
 	DeleteQuestion(ctx context.Context, id uuid.UUID) (*types.Question, error)
 	CreateAnswer(ctx context.Context, answer *types.Answer) error
 	UpdateAnswer(ctx context.Context, answer *types.Answer) error
-	DeleteAnswer(ctx context.Context, id uuid.UUID) (*types.Answer, error)
+	DeleteAnswer(ctx context.Context, answer *types.Answer) error
 }
 
 type WebSocketRepository interface {

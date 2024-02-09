@@ -545,7 +545,10 @@ func (ct *controller) deleteAnswer(c *gin.Context) {
 		return
 	}
 
-	answer, err := ct.service.DeleteAnswer(c, id)
+	answer := &types.Answer{
+		ID: id,
+	}
+	err = ct.service.DeleteAnswer(c, answer)
 	if err == sql.ErrNoRows {
 		log.Printf("answer ID %s not found", id.String())
 		c.JSON(http.StatusNotFound, gin.H{"error": "answer not found"})

@@ -209,7 +209,7 @@ func (s *SQLite) GetRetrospective(ctx context.Context, id uuid.UUID) (*types.Ret
 		}
 
 		// Query answers for the question
-		sqlQuery = `SELECT id, text, position FROM answers WHERE question_id = $1`
+		sqlQuery = `SELECT id, text, position, question_id FROM answers WHERE question_id = $1`
 		answerRows, err := s.conn.Query(sqlQuery, question.ID)
 		if err != nil {
 			return nil, err
@@ -223,6 +223,7 @@ func (s *SQLite) GetRetrospective(ctx context.Context, id uuid.UUID) (*types.Ret
 				&answer.ID,
 				&answer.Text,
 				&answer.Position,
+				&answer.QuestionID,
 			)
 			if err != nil {
 				return nil, err
@@ -373,24 +374,20 @@ func (s *SQLite) UpdateAnswer(ctx context.Context, answer *types.Answer) error {
 	return err
 }
 
-func (s *SQLite) DeleteAnswer(ctx context.Context, id uuid.UUID) (*types.Answer, error) {
-	answer := &types.Answer{
-		ID: id,
-	}
-
+func (s *SQLite) DeleteAnswer(ctx context.Context, answer *types.Answer) error {
 	sqlQuery := `SELECT text, position, question_id FROM answers WHERE id = $1`
-	err := s.conn.QueryRow(sqlQuery, id).Scan(
+	err := s.conn.QueryRow(sqlQuery, answer.ID).Scan(
 		&answer.Text,
 		&answer.Position,
 		&answer.QuestionID,
 	)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	tx, err := s.conn.Begin()
 	if err != nil {
-		return answer, err
+		return err
 	}
 	defer func() {
 		if err != nil {
@@ -401,10 +398,10 @@ func (s *SQLite) DeleteAnswer(ctx context.Context, id uuid.UUID) (*types.Answer,
 	}()
 
 	sqlQuery = `DELETE FROM answers WHERE id = $1`
-	_, err = tx.Exec(sqlQuery, id)
+	_, err = tx.Exec(sqlQuery, answer.ID)
 	if err != nil {
-		return answer, err
+		return err
 	}
 
-	return answer, nil
+	return nil
 }
