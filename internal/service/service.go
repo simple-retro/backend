@@ -105,13 +105,13 @@ func (s *Service) UpdateAnswer(ctx context.Context, answer *types.Answer) error 
 	return s.webSocketRepository.UpdateAnswer(ctx, answer)
 }
 
-func (s *Service) DeleteAnswer(ctx context.Context, id uuid.UUID) (*types.Answer, error) {
-	answer, err := s.repository.DeleteAnswer(ctx, id)
+func (s *Service) DeleteAnswer(ctx context.Context, answer *types.Answer) error {
+	err := s.repository.DeleteAnswer(ctx, answer)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	_, err = s.webSocketRepository.DeleteAnswer(ctx, id)
-	return answer, err
+	err = s.webSocketRepository.DeleteAnswer(ctx, answer)
+	return err
 }
 
 func (s *Service) SubscribeChanges(ctx context.Context, w http.ResponseWriter, r *http.Request) error {

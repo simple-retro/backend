@@ -28,13 +28,14 @@ func New(s *service.Service) *controller {
 
 func CORSMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "http://127.0.0.1:5173")
+		config := config.Get()
+		c.Header("Access-Control-Allow-Origin", fmt.Sprintf("http://%s:5173", config.Server.Host))
 		c.Header("Access-Control-Allow-Credentials", "true")
 		c.Header(
 			"Access-Control-Allow-Headers",
 			"Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, User-Agent",
 		)
-		c.Header("Access-Control-Allow-Methods", "POST,HEAD,PATCH, OPTIONS, GET, PUT")
+		c.Header("Access-Control-Allow-Methods", "POST, HEAD, PATCH, OPTIONS, GET, PUT, DELETE")
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
@@ -113,6 +114,7 @@ func (ct *controller) createRetrospective(c *gin.Context) {
 	retrospective := types.Retrospective{
 		Name:        input.Name,
 		Description: input.Description,
+		Questions:   []types.Question{},
 	}
 
 	err := ct.service.CreateRetrospective(c, &retrospective)
@@ -201,6 +203,7 @@ func (ct *controller) updateRetrospective(c *gin.Context) {
 		ID:          id,
 		Name:        inputRetro.Name,
 		Description: inputRetro.Description,
+		Questions:   []types.Question{},
 	}
 
 	err = ct.service.UpdateRetrospective(c, retro)
@@ -281,7 +284,8 @@ func (ct *controller) createQuestion(c *gin.Context) {
 	}
 
 	question := &types.Question{
-		Text: input.Text,
+		Text:    input.Text,
+		Answers: []types.Answer{},
 	}
 
 	err := ct.service.CreateQuestion(c, question)
@@ -334,8 +338,9 @@ func (ct *controller) updateQuestion(c *gin.Context) {
 	}
 
 	question := &types.Question{
-		ID:   id,
-		Text: inputQuestion.Text,
+		ID:      id,
+		Text:    inputQuestion.Text,
+		Answers: []types.Answer{},
 	}
 
 	err = ct.service.UpdateQuestion(c, question)
@@ -452,9 +457,9 @@ func (ct *controller) createAnswer(c *gin.Context) {
 		return
 	}
 
-	c.Set("question_id", input.QuestionID)
 	answer := &types.Answer{
-		Text: input.Text,
+		QuestionID: input.QuestionID,
+		Text:       input.Text,
 	}
 
 	err := ct.service.CreateAnswer(c, answer)
@@ -501,10 +506,10 @@ func (ct *controller) updateAnswer(c *gin.Context) {
 		return
 	}
 
-	c.Set("question_id", inputAnswer.QuestionID)
 	answer := &types.Answer{
-		ID:   id,
-		Text: inputAnswer.Text,
+		ID:         id,
+		QuestionID: inputAnswer.QuestionID,
+		Text:       inputAnswer.Text,
 	}
 
 	err = ct.service.UpdateAnswer(c, answer)
@@ -512,7 +517,7 @@ func (ct *controller) updateAnswer(c *gin.Context) {
 	}
 
 	if err != nil {
-		log.Printf("error deleting answer: %s", err.Error())
+		log.Printf("error updating answer: %s", err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
@@ -540,7 +545,10 @@ func (ct *controller) deleteAnswer(c *gin.Context) {
 		return
 	}
 
-	answer, err := ct.service.DeleteAnswer(c, id)
+	answer := &types.Answer{
+		ID: id,
+	}
+	err = ct.service.DeleteAnswer(c, answer)
 	if err == sql.ErrNoRows {
 		log.Printf("answer ID %s not found", id.String())
 		c.JSON(http.StatusNotFound, gin.H{"error": "answer not found"})
@@ -565,7 +573,7 @@ func (c *controller) Start() {
 	docs.SwaggerInfo.Title = config.Name
 	docs.SwaggerInfo.Description = "API service to Simple Retro project"
 	docs.SwaggerInfo.Version = "1.0"
-	docs.SwaggerInfo.Host = fmt.Sprintf("simple-retro.ephemeral.dev.br:%d", config.Server.Port)
+	docs.SwaggerInfo.Host = fmt.Sprintf("%s:%d", config.Server.Host, config.Server.Port)
 	docs.SwaggerInfo.BasePath = "/api"
 	docs.SwaggerInfo.Schemes = []string{"http", "https"}
 
