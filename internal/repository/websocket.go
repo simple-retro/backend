@@ -2,7 +2,9 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 
@@ -40,11 +42,24 @@ func (ws *WebSocket) AddConnection(ctx context.Context, w http.ResponseWriter, r
 		return fmt.Errorf("retrospective doesn't exist")
 	}
 
+	i := len(ws.connections[retrospectiveID])
 	ws.connections[retrospectiveID] = append(ws.connections[retrospectiveID], conn)
 
-	<-ctx.Done()
+	buf := make([]byte, 1)
+	for {
+		_, err := conn.NetConn().Read(buf)
+		if err == nil {
+			continue
+		}
+
+		if errors.Is(err, io.EOF) {
+			break
+		}
+
+		fmt.Println(err)
+	}
 	conn.Close()
-	// TODO: remove connection from ws.connections[retrospectiveID] when closed
+	ws.connections[retrospectiveID][i] = nil
 
 	return nil
 }
@@ -75,15 +90,13 @@ func (w *WebSocket) sendMessageToRetro(ctx context.Context, message types.WebSoc
 		return nil
 	}
 
-	for i, conn := range connections {
+	for _, conn := range connections {
 		if conn == nil {
 			continue
 		}
 		err := conn.WriteJSON(message)
 		if err != nil {
 			log.Printf("Error sending message %+v to connection: %v", message, err)
-			conn.Close()
-			connections[i] = nil
 		}
 	}
 

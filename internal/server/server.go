@@ -586,7 +586,7 @@ func (c *controller) Start() {
 	router := gin.Default()
 
 	backend := router.Group("/")
-	backend.Use(CORSMiddleware())
+	// backend.Use(CORSMiddleware())
 
 	backend.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	backend.GET("/health", c.health)
