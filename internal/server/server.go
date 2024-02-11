@@ -1,17 +1,16 @@
 package server
 
 import (
+	"api/config"
+	"api/docs"
+	"api/internal/service"
+	"api/types"
 	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"path"
-
-	"api/config"
-	"api/docs"
-	"api/internal/service"
-	"api/types"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -590,10 +589,10 @@ func (c *controller) Start() {
 		backend.Use(CORSMiddleware())
 	}
 
-	backend.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
-	backend.GET("/health", c.health)
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
-	api := backend.Group("/api")
+	api := router.Group("/api")
+	api.GET("/health", c.health)
 	api.POST("/retrospective", c.createRetrospective)
 	api.GET("/retrospective/:id", c.getRetrospective)
 	api.PATCH("/retrospective/:id", c.updateRetrospective)

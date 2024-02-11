@@ -18,7 +18,7 @@ type SQLite struct {
 
 func NewSQLite() (*SQLite, error) {
 	conf := config.Get()
-	db, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?_foreign_keys=on", conf.Database.Address))
+	db, err := sql.Open("sqlite3", fmt.Sprintf("%s%s?_foreign_keys=on", conf.Database.Type, conf.Database.Address))
 	if err != nil {
 		return nil, err
 	}
@@ -36,7 +36,7 @@ func NewSQLite() (*SQLite, error) {
 		conn: db,
 	}
 
-	err = repo.migrate("database/schema.sql")
+	err = repo.migrate(conf.Database.Schema)
 	if err != nil {
 		return nil, err
 	}

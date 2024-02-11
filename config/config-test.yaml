@@ -1,0 +1,11 @@
+name: Simple Retro API
+
+server:
+  host: "127.0.0.1"
+  port: 8080
+
+database:
+  type: ":memory:"
+  address: ""
+  max_conn: 20
+  schema: "../../database/schema.sql"
