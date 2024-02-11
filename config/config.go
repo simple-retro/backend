@@ -22,6 +22,7 @@ type Server struct {
 type Database struct {
 	Type    string `yaml:"type"`
 	Address string `yaml:"address"`
+	Cache   string `yaml:"cache"`
 	MaxConn int    `yaml:"max_conn"`
 	Schema  string `yaml:"schema"`
 }

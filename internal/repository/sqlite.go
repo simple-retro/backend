@@ -18,7 +18,10 @@ type SQLite struct {
 
 func NewSQLite() (*SQLite, error) {
 	conf := config.Get()
-	db, err := sql.Open("sqlite3", fmt.Sprintf("%s%s?_foreign_keys=on", conf.Database.Type, conf.Database.Address))
+	db, err := sql.Open(
+		"sqlite3",
+		fmt.Sprintf("%s%s?_foreign_keys=on&cache=%s", conf.Database.Type, conf.Database.Address, conf.Database.Cache),
+	)
 	if err != nil {
 		return nil, err
 	}

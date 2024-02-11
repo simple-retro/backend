@@ -9,5 +9,6 @@ server:
 database:
   type: "file:"
   address: "database.db"
+  cache: "shared"
   max_conn: 20
   schema: "database/schema.sql" 

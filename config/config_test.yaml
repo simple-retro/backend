@@ -5,7 +5,8 @@ server:
   port: 8080
 
 database:
-  type: ":memory:"
-  address: ""
+  type: "file:"
+  address: ":memory:"
+  cache: "shared"
   max_conn: 20
   schema: "../../database/schema.sql"
