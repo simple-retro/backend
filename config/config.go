@@ -13,8 +13,9 @@ type Config struct {
 }
 
 type Server struct {
-	Host string `yaml:"host"`
-	Port int    `yaml:"port"`
+	Host            string `yaml:"host"`
+	Port            int    `yaml:"port"`
+	StaticFilesPath string `yaml:"static_files_path"`
 }
 
 type Database struct {

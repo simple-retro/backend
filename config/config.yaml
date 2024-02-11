@@ -1,8 +1,9 @@
 name: Simple Retro API
 
 server:
-  host: "127.0.0.1"
+  host: "localhost"
   port: 8080
+  static_files_path: "static"
 
 database:
   address: "database.db"
