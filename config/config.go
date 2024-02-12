@@ -16,7 +16,7 @@ type Server struct {
 	Host            string `yaml:"host"`
 	Port            int    `yaml:"port"`
 	StaticFilesPath string `yaml:"static_files_path"`
-  WithCors bool `yaml:"with_cors"`
+	WithCors        bool   `yaml:"with_cors"`
 }
 
 type Database struct {
