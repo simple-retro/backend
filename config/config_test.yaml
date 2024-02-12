@@ -1,14 +1,14 @@
 name: Simple Retro API
 
 server:
-  host: "localhost"
+  host: "127.0.0.1"
   port: 8080
   static_files_path: "static"
   with_cors: false
 
 database:
   type: "file:"
-  address: "database.db"
+  address: ":memory:"
   cache: "shared"
   max_conn: 20
-  schema: "database/schema.sql" 
+  schema: "../../database/schema.sql"
