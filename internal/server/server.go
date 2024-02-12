@@ -1,14 +1,17 @@
 package server
 
 import (
-	"api/config"
-	"api/docs"
-	"api/internal/service"
-	"api/types"
 	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"path"
+
+	"api/config"
+	"api/docs"
+	"api/internal/service"
+	"api/types"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -514,6 +517,9 @@ func (ct *controller) updateAnswer(c *gin.Context) {
 
 	err = ct.service.UpdateAnswer(c, answer)
 	if err == sql.ErrNoRows {
+		log.Printf("answer ID %s not found", id.String())
+		c.JSON(http.StatusNotFound, gin.H{"error": "answer not found"})
+		return
 	}
 
 	if err != nil {
@@ -579,12 +585,15 @@ func (c *controller) Start() {
 
 	router := gin.Default()
 
-	router.Use(CORSMiddleware())
+	backend := router.Group("/")
+	if config.Server.WithCors {
+		backend.Use(CORSMiddleware())
+	}
 
-	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
-	router.GET("/health", c.health)
+	backend.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	backend.GET("/health", c.health)
 
-	api := router.Group("/api")
+	api := backend.Group("/api")
 	api.POST("/retrospective", c.createRetrospective)
 	api.GET("/retrospective/:id", c.getRetrospective)
 	api.PATCH("/retrospective/:id", c.updateRetrospective)
@@ -600,6 +609,17 @@ func (c *controller) Start() {
 	authorized.POST("/answer", c.createAnswer)
 	authorized.PATCH("/answer/:id", c.updateAnswer)
 	authorized.DELETE("/answer/:id", c.deleteAnswer)
+
+	fs := gin.Dir(config.Server.StaticFilesPath, false)
+	serveStatic := gin.WrapH(http.FileServer(fs))
+	router.NoRoute(
+		func(c *gin.Context) {
+			_, err := fs.Open(path.Clean(c.Request.URL.Path))
+			if os.IsNotExist(err) {
+				c.Request.URL.Path = "/"
+			}
+			serveStatic(c)
+		})
 
 	router.Run(fmt.Sprintf(":%d", config.Server.Port))
 }

@@ -1,11 +1,14 @@
 package repository
 
 import (
-	"api/types"
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+
+	"api/types"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -39,11 +42,24 @@ func (ws *WebSocket) AddConnection(ctx context.Context, w http.ResponseWriter, r
 		return fmt.Errorf("retrospective doesn't exist")
 	}
 
+	i := len(ws.connections[retrospectiveID])
 	ws.connections[retrospectiveID] = append(ws.connections[retrospectiveID], conn)
 
-	<-ctx.Done()
+	buf := make([]byte, 1)
+	for {
+		_, err := conn.NetConn().Read(buf)
+		if err == nil {
+			continue
+		}
+
+		if errors.Is(err, io.EOF) {
+			break
+		}
+
+		fmt.Println(err)
+	}
 	conn.Close()
-	// TODO: remove connection from ws.connections[retrospectiveID] when closed
+	ws.connections[retrospectiveID][i] = nil
 
 	return nil
 }
@@ -60,23 +76,30 @@ func NewWebSocket() (*WebSocket, error) {
 	}, nil
 }
 
-func (w *WebSocket) sendMessageToRetro(ctx context.Context, message types.WebSocketMessage) error {
-	retrospectiveID, ok := ctx.Value("retrospective_id").(uuid.UUID)
-	if !ok {
-		return fmt.Errorf("retrospective id not found")
+func (w *WebSocket) sendMessageToRetro(ctx context.Context, message types.WebSocketMessage, retrospectiveID *uuid.UUID) error {
+	if retrospectiveID == nil {
+		id, ok := ctx.Value("retrospective_id").(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("retrospective id not found")
+		}
+		retrospectiveID = &id
 	}
 
-	connections := w.connections[retrospectiveID]
+	connections := w.connections[*retrospectiveID]
 	if connections == nil {
 		return nil
 	}
 
 	for _, conn := range connections {
+		if conn == nil {
+			continue
+		}
 		err := conn.WriteJSON(message)
 		if err != nil {
 			log.Printf("Error sending message %+v to connection: %v", message, err)
 		}
 	}
+
 	return nil
 }
 
@@ -88,7 +111,7 @@ func (w *WebSocket) CreateAnswer(ctx context.Context, answer *types.Answer) erro
 		Value:  answer,
 	}
 
-	return w.sendMessageToRetro(ctx, message)
+	return w.sendMessageToRetro(ctx, message, nil)
 }
 
 // CreateQuestion implements Repository.
@@ -99,7 +122,7 @@ func (w *WebSocket) CreateQuestion(ctx context.Context, question *types.Question
 		Value:  question,
 	}
 
-	return w.sendMessageToRetro(ctx, message)
+	return w.sendMessageToRetro(ctx, message, nil)
 }
 
 // DeleteAnswer implements Repository.
@@ -110,7 +133,7 @@ func (w *WebSocket) DeleteAnswer(ctx context.Context, answer *types.Answer) erro
 		Value:  answer,
 	}
 
-	return w.sendMessageToRetro(ctx, message)
+	return w.sendMessageToRetro(ctx, message, nil)
 }
 
 // DeleteQuestion implements Repository.
@@ -121,14 +144,14 @@ func (w *WebSocket) DeleteQuestion(ctx context.Context, id uuid.UUID) (*types.Qu
 		Value:  types.Object{ID: id},
 	}
 
-	return nil, w.sendMessageToRetro(ctx, message)
+	return nil, w.sendMessageToRetro(ctx, message, nil)
 }
 
 func (s *WebSocket) GetAllRetrospectives(ctx context.Context) ([]uuid.UUID, error) {
 	panic("unimplemented")
 }
 
-// DeleteRetrospective implements Repository.
+// CreateRetrospective implements Repository.
 func (w *WebSocket) CreateRetrospective(ctx context.Context, retro *types.Retrospective) error {
 	w.connections[retro.ID] = make([]*websocket.Conn, 0)
 	return nil
@@ -137,7 +160,14 @@ func (w *WebSocket) CreateRetrospective(ctx context.Context, retro *types.Retros
 // DeleteRetrospective implements Repository.
 func (w *WebSocket) DeleteRetrospective(ctx context.Context, id uuid.UUID) (*types.Retrospective, error) {
 	delete(w.connections, id)
-	return nil, nil
+
+	message := types.WebSocketMessage{
+		Action: "delete",
+		Type:   "retrospective",
+		Value:  types.Object{ID: id},
+	}
+
+	return nil, w.sendMessageToRetro(ctx, message, &id)
 }
 
 // UpdateAnswer implements Repository.
@@ -148,7 +178,7 @@ func (w *WebSocket) UpdateAnswer(ctx context.Context, answer *types.Answer) erro
 		Value:  answer,
 	}
 
-	return w.sendMessageToRetro(ctx, message)
+	return w.sendMessageToRetro(ctx, message, nil)
 }
 
 // UpdateQuestion implements Repository.
@@ -159,10 +189,16 @@ func (w *WebSocket) UpdateQuestion(ctx context.Context, question *types.Question
 		Value:  question,
 	}
 
-	return w.sendMessageToRetro(ctx, message)
+	return w.sendMessageToRetro(ctx, message, nil)
 }
 
 // UpdateRetrospective implements Repository.
-func (*WebSocket) UpdateRetrospective(ctx context.Context, retro *types.Retrospective) error {
-	panic("unimplemented")
+func (w *WebSocket) UpdateRetrospective(ctx context.Context, retro *types.Retrospective) error {
+	message := types.WebSocketMessage{
+		Action: "update",
+		Type:   "retrospective",
+		Value:  retro,
+	}
+
+	return w.sendMessageToRetro(ctx, message, &retro.ID)
 }
