@@ -7,9 +7,10 @@ import (
 )
 
 type Config struct {
-	Name     string `yaml:"name"`
-	Database Database
-	Server   Server
+	Name        string `yaml:"name"`
+	Development bool   `yaml:"development"`
+	Database    Database
+	Server      Server
 }
 
 type Server struct {

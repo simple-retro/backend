@@ -24,11 +24,10 @@ WORKDIR /app
 
 # Copy the pre-built binary from the previous stage
 COPY --from=builder /app/main .
-COPY --from=builder /app/config ./config
+COPY --from=builder /app/config/config_prod.yaml ./config/config.yaml
 COPY --from=builder /app/database ./database
-COPY --from=builder /app/docs ./docs
 
-EXPOSE 8080
+EXPOSE 7878
 
 # Command to run the executable
 CMD ["./main"]

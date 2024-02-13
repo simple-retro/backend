@@ -1,0 +1,25 @@
+services:
+  simple-retro-api:
+    image: simple-retro-api
+    container_name: simple-retro-api
+    hostname: simple-retro
+    restart: always
+
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 500M
+        reservations:
+          cpus: '0.8'
+          memory: 200M
+
+    ports:
+      - 127.0.0.1:7878:7878
+
+    volumes:
+      - simple-retro-data:/app/database.db
+
+volumes:
+  simple-retro-data:
+    external: true
