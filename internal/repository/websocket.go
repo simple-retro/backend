@@ -45,10 +45,17 @@ func (ws *WebSocket) AddConnection(ctx context.Context, w http.ResponseWriter, r
 	i := len(ws.connections[retrospectiveID])
 	ws.connections[retrospectiveID] = append(ws.connections[retrospectiveID], conn)
 
-	buf := make([]byte, 1)
 	for {
-		_, err := conn.NetConn().Read(buf)
+		var message types.WebSocketMessage
+		err := conn.ReadJSON(&message)
+
 		if err == nil {
+			if message.Type == "ping" {
+				errWrite := conn.WriteJSON(types.WebSocketMessage{Type: "pong"})
+				if errWrite != nil {
+					fmt.Println(errWrite)
+				}
+			}
 			continue
 		}
 

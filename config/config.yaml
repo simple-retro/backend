@@ -4,8 +4,7 @@ development: true
 server:
   host: "localhost"
   port: 8080
-  static_files_path: "static"
-  with_cors: false
+  with_cors: true
 
 database:
   type: "file:"

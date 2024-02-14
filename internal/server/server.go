@@ -1,16 +1,15 @@
 package server
 
 import (
-	"api/config"
-	"api/docs"
-	"api/internal/service"
-	"api/types"
 	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
-	"os"
-	"path"
+
+	"api/config"
+	"api/docs"
+	"api/internal/service"
+	"api/types"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -31,7 +30,7 @@ func New(s *service.Service) *controller {
 func CORSMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		config := config.Get()
-		c.Header("Access-Control-Allow-Origin", fmt.Sprintf("https://%s", config.Server.Host))
+		c.Header("Access-Control-Allow-Origin", fmt.Sprintf("http://%s:5173", config.Server.Host))
 		c.Header("Access-Control-Allow-Credentials", "true")
 		c.Header(
 			"Access-Control-Allow-Headers",
@@ -584,9 +583,8 @@ func (c *controller) Start() {
 
 	router := gin.Default()
 
-	backend := router.Group("/")
 	if config.Server.WithCors {
-		backend.Use(CORSMiddleware())
+		router.Use(CORSMiddleware())
 	}
 
 	if config.Development {
@@ -610,17 +608,6 @@ func (c *controller) Start() {
 	authorized.POST("/answer", c.createAnswer)
 	authorized.PATCH("/answer/:id", c.updateAnswer)
 	authorized.DELETE("/answer/:id", c.deleteAnswer)
-
-	fs := gin.Dir(config.Server.StaticFilesPath, false)
-	serveStatic := gin.WrapH(http.FileServer(fs))
-	router.NoRoute(
-		func(c *gin.Context) {
-			_, err := fs.Open(path.Clean(c.Request.URL.Path))
-			if os.IsNotExist(err) {
-				c.Request.URL.Path = "/"
-			}
-			serveStatic(c)
-		})
 
 	router.Run(fmt.Sprintf(":%d", config.Server.Port))
 }
