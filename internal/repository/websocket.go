@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
+	"time"
 
 	"api/types"
 
@@ -46,8 +48,14 @@ func (ws *WebSocket) AddConnection(ctx context.Context, w http.ResponseWriter, r
 	ws.connections[retrospectiveID] = append(ws.connections[retrospectiveID], conn)
 
 	for {
+		err := conn.SetReadDeadline(time.Now().Add(30 * time.Second))
+		if err != nil {
+			fmt.Println(err)
+			break
+		}
+
 		var message types.WebSocketMessage
-		err := conn.ReadJSON(&message)
+		err = conn.ReadJSON(&message)
 
 		if err == nil {
 			if message.Type == "ping" {
@@ -59,7 +67,7 @@ func (ws *WebSocket) AddConnection(ctx context.Context, w http.ResponseWriter, r
 			continue
 		}
 
-		if errors.Is(err, io.EOF) {
+		if netErr, ok := err.(net.Error); (ok && netErr.Timeout()) || websocket.IsUnexpectedCloseError(err) || errors.Is(err, io.EOF) {
 			break
 		}
 
