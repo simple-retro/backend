@@ -47,7 +47,7 @@ The documentation could be accessed in `/swagger/index.html`
 To deploy the Simple Retro API, use Docker image.
 
 ```bash
-docker build -t simple-retro-api .
+docker build -t backend:<version> .
 ```
 
 ```bash
