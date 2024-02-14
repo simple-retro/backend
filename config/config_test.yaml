@@ -4,7 +4,6 @@ development: true
 server:
   host: "127.0.0.1"
   port: 8080
-  static_files_path: "static"
   with_cors: false
 
 database:

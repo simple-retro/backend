@@ -4,7 +4,6 @@ development: false
 server:
   host: "simple-retro.ephemeral.dev.br"
   port: 7878
-  static_files_path: "static"
   with_cors: false
 
 database:
