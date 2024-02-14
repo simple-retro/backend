@@ -31,7 +31,7 @@ func New(s *service.Service) *controller {
 func CORSMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		config := config.Get()
-		c.Header("Access-Control-Allow-Origin", fmt.Sprintf("http://%s:5173", config.Server.Host))
+		c.Header("Access-Control-Allow-Origin", fmt.Sprintf("https://%s", config.Server.Host))
 		c.Header("Access-Control-Allow-Credentials", "true")
 		c.Header(
 			"Access-Control-Allow-Headers",
@@ -589,7 +589,9 @@ func (c *controller) Start() {
 		backend.Use(CORSMiddleware())
 	}
 
-	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	if config.Development {
+		router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	}
 
 	api := router.Group("/api")
 	api.GET("/health", c.health)

@@ -1,9 +1,9 @@
 name: Simple Retro API
-development: true
+development: false
 
 server:
-  host: "localhost"
-  port: 8080
+  host: "simple-retro.ephemeral.dev.br"
+  port: 7878
   static_files_path: "static"
   with_cors: false
 
