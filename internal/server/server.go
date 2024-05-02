@@ -1,15 +1,14 @@
 package server
 
 import (
-	"database/sql"
-	"fmt"
-	"log"
-	"net/http"
-
 	"api/config"
 	"api/docs"
 	"api/internal/service"
 	"api/types"
+	"database/sql"
+	"fmt"
+	"log"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -568,6 +567,19 @@ func (ct *controller) deleteAnswer(c *gin.Context) {
 	c.JSON(http.StatusOK, answer)
 }
 
+// getLimits godoc
+//
+//	@Summary	Get API limits
+//	@Produce	json
+//	@Success	200	{object}	types.ApiLimits	"API limits"
+//	@Failure	500	{string}	string	"Internal error"
+//	@Router		/limits [get]
+func (ct *controller) getLimits(c *gin.Context) {
+	limits := ct.service.GetLimits(c)
+
+	c.JSON(http.StatusOK, limits)
+}
+
 // @license.name	MIT
 // @license.url	https://github.com/simple-retro/api/blob/master/LICENSE
 func (c *controller) Start() {
@@ -598,6 +610,7 @@ func (c *controller) Start() {
 	api.PATCH("/retrospective/:id", c.updateRetrospective)
 	api.DELETE("/retrospective/:id", c.deleteRetrospective)
 	api.GET("/hello/:id", c.subscribeChanges)
+	api.GET("/limits", c.getLimits)
 
 	authorized := api.Group("/")
 	authorized.Use(Authenticate())
