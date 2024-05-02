@@ -91,10 +91,6 @@ func (s *SQLite) UpdateRetrospective(ctx context.Context, retro *types.Retrospec
 		retro.Name = foundRetro.Name
 	}
 
-	if len(retro.Description) == 0 {
-		retro.Description = foundRetro.Description
-	}
-
 	sqlQuery = `UPDATE retrospectives SET name = $1, description = $2 WHERE id = $3`
 	_, err = s.conn.Exec(sqlQuery,
 		retro.Name,
