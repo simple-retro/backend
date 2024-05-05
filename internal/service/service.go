@@ -133,3 +133,7 @@ func (s *Service) LoadAllRetrospectives(ctx context.Context) error {
 
 	return nil
 }
+
+func (s *Service) GetLimits(ctx context.Context) *types.ApiLimits {
+	return types.GetApiLimits()
+}

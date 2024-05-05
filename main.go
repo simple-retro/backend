@@ -1,13 +1,12 @@
 package main
 
 import (
-	"context"
-	"log"
-
 	"api/config"
 	"api/internal/repository"
 	"api/internal/server"
 	"api/internal/service"
+	"context"
+	"log"
 )
 
 func main() {
