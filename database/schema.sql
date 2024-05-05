@@ -2,7 +2,8 @@
 CREATE TABLE IF NOT EXISTS retrospectives (
     id          TEXT PRIMARY KEY,
     name        TEXT,
-    description TEXT
+    description TEXT,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Table for Question

@@ -11,6 +11,12 @@ type Config struct {
 	Development bool   `yaml:"development"`
 	Database    Database
 	Server      Server
+	Schedule    Schedule
+}
+
+type Schedule struct {
+	CleanUpDays     int `yaml:"clean_up_days"`
+	IntervalMinutes int `yaml:"interval_minutes"`
 }
 
 type Server struct {

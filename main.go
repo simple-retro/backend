@@ -32,5 +32,6 @@ func main() {
 	service.LoadAllRetrospectives(context.Background())
 
 	log.Printf("initing service: %s", config.Name)
+	controller.StartSchedule()
 	controller.Start()
 }

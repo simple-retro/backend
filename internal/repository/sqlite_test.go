@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
@@ -160,6 +161,7 @@ func TestGetRetrospective(t *testing.T) {
 		ID:          id,
 		Name:        "mtg",
 		Description: "df/dx = 0",
+		CreatedAt:   time.Now().UTC(),
 		Questions: []types.Question{
 			{
 				ID:   questionID,
@@ -176,12 +178,13 @@ func TestGetRetrospective(t *testing.T) {
 		},
 	}
 
-	sqlQuery := `INSERT INTO retrospectives (id, name, description) VALUES ($1, $2, $3)`
+	sqlQuery := `INSERT INTO retrospectives (id, name, description, created_at) VALUES ($1, $2, $3, $4)`
 	_, err = db.conn.Exec(
 		sqlQuery,
 		&retro.ID,
 		&retro.Name,
 		&retro.Description,
+		&retro.CreatedAt,
 	)
 	assert.Nilf(t, err, "error creating retrospective")
 

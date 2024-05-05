@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"api/types"
 	"context"
 	"errors"
 	"fmt"
@@ -9,8 +10,6 @@ import (
 	"net"
 	"net/http"
 	"time"
-
-	"api/types"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -67,7 +66,8 @@ func (ws *WebSocket) AddConnection(ctx context.Context, w http.ResponseWriter, r
 			continue
 		}
 
-		if netErr, ok := err.(net.Error); (ok && netErr.Timeout()) || websocket.IsUnexpectedCloseError(err) || errors.Is(err, io.EOF) {
+		if netErr, ok := err.(net.Error); (ok && netErr.Timeout()) || websocket.IsUnexpectedCloseError(err) ||
+			errors.Is(err, io.EOF) {
 			break
 		}
 
@@ -160,6 +160,10 @@ func (w *WebSocket) DeleteQuestion(ctx context.Context, id uuid.UUID) (*types.Qu
 	}
 
 	return nil, w.sendMessageToRetro(ctx, message, nil)
+}
+
+func (s *WebSocket) GetOldRetrospectives(ctx context.Context, date time.Time) ([]uuid.UUID, error) {
+	panic("unimplemented")
 }
 
 func (s *WebSocket) GetAllRetrospectives(ctx context.Context) ([]uuid.UUID, error) {
