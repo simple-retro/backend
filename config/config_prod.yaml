@@ -14,5 +14,5 @@ database:
   schema: "database/schema.sql" 
 
 schedule:
-  clean_up_days: 7
+  clean_up_days: 30
   interval_minutes: 60

@@ -40,14 +40,22 @@ func (s *Service) CreateRetrospective(ctx context.Context, retro *types.Retrospe
 }
 
 func (s *Service) GetRetrospective(ctx context.Context, id uuid.UUID) (*types.Retrospective, error) {
-	return s.repository.GetRetrospective(ctx, id)
+	config := config.Get()
+	cleanUpDays := time.Duration(config.Schedule.CleanUpDays)
+
+	retro, err := s.repository.GetRetrospective(ctx, id)
+	retro.ExpireAt = retro.CreatedAt.Add(cleanUpDays * 24 * time.Hour)
+	return retro, err
 }
 
 func (s *Service) DeleteRetrospective(ctx context.Context, id uuid.UUID) (*types.Retrospective, error) {
+	config := config.Get()
+	cleanUpDays := time.Duration(config.Schedule.CleanUpDays)
 	retro, err := s.repository.DeleteRetrospective(ctx, id)
 	if err != nil {
 		return nil, err
 	}
+	retro.ExpireAt = retro.CreatedAt.Add(cleanUpDays * 24 * time.Hour)
 	_, err = s.webSocketRepository.DeleteRetrospective(ctx, id)
 	return retro, err
 }
