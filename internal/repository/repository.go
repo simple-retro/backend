@@ -4,11 +4,13 @@ import (
 	"api/types"
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 )
 
 type Repository interface {
+	GetOldRetrospectives(ctx context.Context, date time.Time) ([]uuid.UUID, error)
 	GetAllRetrospectives(ctx context.Context) ([]uuid.UUID, error)
 	GetRetrospective(ctx context.Context, id uuid.UUID) (*types.Retrospective, error)
 	CreateRetrospective(ctx context.Context, retro *types.Retrospective) error

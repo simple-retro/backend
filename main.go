@@ -3,6 +3,7 @@ package main
 import (
 	"api/config"
 	"api/internal/repository"
+	"api/internal/schedule"
 	"api/internal/server"
 	"api/internal/service"
 	"context"
@@ -26,10 +27,12 @@ func main() {
 	}
 
 	service := service.New(repo, wsrepo)
+	service.LoadAllRetrospectives(context.Background())
 
 	controller := server.New(service)
 
-	service.LoadAllRetrospectives(context.Background())
+	schedule := schedule.New(service)
+	schedule.Start()
 
 	log.Printf("initing service: %s", config.Name)
 	controller.Start()

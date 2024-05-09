@@ -12,3 +12,7 @@ database:
   cache: "shared"
   max_conn: 20
   schema: "../../database/schema.sql"
+
+schedule:
+  clean_up_days: 1
+  interval_minutes: 1

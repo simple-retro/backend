@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
@@ -64,11 +65,12 @@ func (s *SQLite) migrate(filepath string) error {
 }
 
 func (s *SQLite) CreateRetrospective(ctx context.Context, retro *types.Retrospective) error {
-	sql := `INSERT INTO retrospectives (id, name, description) VALUES ($1, $2, $3)`
+	sql := `INSERT INTO retrospectives (id, name, description, created_at) VALUES ($1, $2, $3, $4)`
 	_, err := s.conn.Exec(sql,
 		retro.ID,
 		retro.Name,
 		retro.Description,
+		retro.CreatedAt,
 	)
 	return err
 }
@@ -152,6 +154,26 @@ func (s *SQLite) DeleteRetrospective(ctx context.Context, id uuid.UUID) (*types.
 	return retro, nil
 }
 
+func (s *SQLite) GetOldRetrospectives(ctx context.Context, date time.Time) ([]uuid.UUID, error) {
+	sqlQuery := `SELECT id FROM retrospectives WHERE created_at < $1`
+	rows, err := s.conn.Query(sqlQuery, date)
+	if err != nil {
+		return nil, err
+	}
+
+	IDs := make([]uuid.UUID, 0)
+
+	for rows.Next() {
+		var ID uuid.UUID
+		err := rows.Scan(&ID)
+		if err != nil {
+			return nil, err
+		}
+		IDs = append(IDs, ID)
+	}
+	return IDs, nil
+}
+
 func (s *SQLite) GetAllRetrospectives(ctx context.Context) ([]uuid.UUID, error) {
 	sqlQuery := `SELECT id FROM retrospectives`
 	rows, err := s.conn.Query(sqlQuery)
@@ -178,10 +200,11 @@ func (s *SQLite) GetRetrospective(ctx context.Context, id uuid.UUID) (*types.Ret
 		Questions: []types.Question{},
 	}
 
-	sqlQuery := `SELECT name, description FROM retrospectives WHERE id = $1`
+	sqlQuery := `SELECT name, description, created_at FROM retrospectives WHERE id = $1`
 	err := s.conn.QueryRow(sqlQuery, id).Scan(
 		&retro.Name,
 		&retro.Description,
+		&retro.CreatedAt,
 	)
 	if err != nil {
 		return nil, err

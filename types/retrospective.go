@@ -1,6 +1,8 @@
 package types
 
 import (
+	"time"
+
 	"github.com/google/uuid"
 )
 
@@ -9,6 +11,8 @@ type Retrospective struct {
 	Name        string     `json:"name"`
 	Description string     `json:"description"`
 	Questions   []Question `json:"questions"`
+	CreatedAt   time.Time  `json:"created_at"`
+	ExpireAt    time.Time  `json:"expire_at"`
 }
 
 type Question struct {

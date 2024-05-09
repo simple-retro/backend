@@ -1,10 +1,13 @@
 package service
 
 import (
+	"api/config"
 	"api/internal/repository"
 	"api/types"
 	"context"
+	"log"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -28,6 +31,7 @@ func (s *Service) CreateRetrospective(ctx context.Context, retro *types.Retrospe
 	}
 
 	retro.ID = id
+	retro.CreatedAt = time.Now().UTC()
 	err = s.repository.CreateRetrospective(ctx, retro)
 	if err != nil {
 		return err
@@ -36,14 +40,22 @@ func (s *Service) CreateRetrospective(ctx context.Context, retro *types.Retrospe
 }
 
 func (s *Service) GetRetrospective(ctx context.Context, id uuid.UUID) (*types.Retrospective, error) {
-	return s.repository.GetRetrospective(ctx, id)
+	config := config.Get()
+	cleanUpDays := time.Duration(config.Schedule.CleanUpDays)
+
+	retro, err := s.repository.GetRetrospective(ctx, id)
+	retro.ExpireAt = retro.CreatedAt.Add(cleanUpDays * 24 * time.Hour)
+	return retro, err
 }
 
 func (s *Service) DeleteRetrospective(ctx context.Context, id uuid.UUID) (*types.Retrospective, error) {
+	config := config.Get()
+	cleanUpDays := time.Duration(config.Schedule.CleanUpDays)
 	retro, err := s.repository.DeleteRetrospective(ctx, id)
 	if err != nil {
 		return nil, err
 	}
+	retro.ExpireAt = retro.CreatedAt.Add(cleanUpDays * 24 * time.Hour)
 	_, err = s.webSocketRepository.DeleteRetrospective(ctx, id)
 	return retro, err
 }
@@ -119,13 +131,13 @@ func (s *Service) SubscribeChanges(ctx context.Context, w http.ResponseWriter, r
 }
 
 func (s *Service) LoadAllRetrospectives(ctx context.Context) error {
-	IDs, err := s.repository.GetAllRetrospectives(ctx)
+	ids, err := s.repository.GetAllRetrospectives(ctx)
 	if err != nil {
 		return err
 	}
 
-	for _, ID := range IDs {
-		err := s.webSocketRepository.CreateRetrospective(ctx, &types.Retrospective{ID: ID})
+	for _, id := range ids {
+		err := s.webSocketRepository.CreateRetrospective(ctx, &types.Retrospective{ID: id})
 		if err != nil {
 			return err
 		}
@@ -136,4 +148,23 @@ func (s *Service) LoadAllRetrospectives(ctx context.Context) error {
 
 func (s *Service) GetLimits(ctx context.Context) *types.ApiLimits {
 	return types.GetApiLimits()
+}
+
+func (s *Service) CleanUpRetros(ctx context.Context) error {
+	config := config.Get()
+	cleanUpDays := time.Duration(config.Schedule.CleanUpDays)
+	date := time.Now().Add(-(cleanUpDays * 24 * time.Hour))
+	ids, err := s.repository.GetOldRetrospectives(ctx, date)
+	if err != nil {
+		return err
+	}
+
+	for _, id := range ids {
+		if _, err := s.repository.DeleteRetrospective(ctx, id); err != nil {
+			return err
+		}
+	}
+
+	log.Printf("deleted %d retrospectives older than %s", len(ids), date.String())
+	return nil
 }
