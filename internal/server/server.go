@@ -121,7 +121,7 @@ func newSessionStore() gin.HandlerFunc {
 // health godoc
 //
 //	@Summary	Show API health
-//	@Tags Healthcheck
+//	@Tags		Healthcheck
 //	@Produce	json
 //	@Success	200	{object}	health	"API metrics"
 //	@Failure	500	{string}	string	"Internal error"
@@ -623,12 +623,64 @@ func (ct *controller) deleteAnswer(c *gin.Context) {
 //	@Summary	Get API limits
 //	@Produce	json
 //	@Success	200	{object}	types.ApiLimits	"API limits"
-//	@Failure	500	{string}	string	"Internal error"
+//	@Failure	500	{string}	string			"Internal error"
 //	@Router		/limits [get]
 func (ct *controller) getLimits(c *gin.Context) {
 	limits := ct.service.GetLimits(c)
 
 	c.JSON(http.StatusOK, limits)
+}
+
+// voteAnswer godoc
+//
+//	@Summary	Vote Answer
+//	@Tags		Answer
+//	@Accept		json
+//	@Produce	json
+//	@Param		vote	body		types.AnswerVoteRequest	true	"Vote Answer"
+//	@Success	200		{string}	string					"Vote recorded"
+//	@Failure	400		{string}	string					"Invalid input"
+//	@Failure	404		{string}	string					"Vote not found"
+//	@Failure	409		{string}	string					"Vote already exists"
+//	@Failure	500		{string}	string					"Internal error"
+//	@Router		/answer/vote [post]
+func (ct *controller) voteAnswer(c *gin.Context) {
+	var input types.AnswerVoteRequest
+	if err := c.BindJSON(&input); err != nil {
+		log.Printf("error parsing body content: %s", err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid body content"})
+		return
+	}
+
+	if err := input.Validate(); err != nil {
+		log.Printf("invalid input: %s", err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	sessionID := c.GetString(sessionIDKey)
+	answer := &types.Answer{
+		ID: input.AnswerID,
+	}
+
+	err := ct.service.VoteAnswer(c, answer, input.Action, sessionID)
+	if err == nil {
+		c.JSON(http.StatusOK, gin.H{"message": "vote recorded"})
+		return
+	}
+
+	log.Printf("error voting answer: %s", err.Error())
+
+	switch err {
+	case service.ErrVoteAlreadyExists:
+		c.JSON(http.StatusConflict, gin.H{"error": "vote already exists"})
+		return
+	case service.ErrVoteNotFound:
+		c.JSON(http.StatusNotFound, gin.H{"error": "vote not found"})
+		return
+	}
+	c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+
 }
 
 // @license.name	MIT
@@ -675,6 +727,7 @@ func (c *controller) Start() {
 	authorized.POST("/answer", c.createAnswer)
 	authorized.PATCH("/answer/:id", c.updateAnswer)
 	authorized.DELETE("/answer/:id", c.deleteAnswer)
+	authorized.POST("/answer/vote", c.voteAnswer)
 
 	router.Run(fmt.Sprintf(":%d", config.Server.Port))
 }

@@ -5,6 +5,7 @@ import (
 	"api/types"
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -13,9 +14,16 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+var _ Repository = (*SQLite)(nil)
+
 type SQLite struct {
 	conn *sql.DB
 }
+
+var (
+	ErrRepoConflict = errors.New("conflict")
+	ErrRepoNotFound = errors.New("not found")
+)
 
 func NewSQLite() (*SQLite, error) {
 	conf := config.Get()
@@ -130,6 +138,15 @@ func (s *SQLite) DeleteRetrospective(ctx context.Context, id uuid.UUID) (*types.
 		err = tx.Commit()
 	}()
 
+	// Delete answer votes associated with questions of the retrospective
+	sqlQuery = `DELETE FROM answer_votes WHERE answer_id IN 
+		(SELECT id FROM answers WHERE question_id IN 
+		(SELECT id FROM questions WHERE retrospective_id = $1))`
+	_, err = tx.Exec(sqlQuery, id)
+	if err != nil {
+		return retro, err
+	}
+
 	// Delete answers associated with questions of the retrospective
 	sqlQuery = `DELETE FROM answers WHERE question_id IN (SELECT id FROM questions WHERE retrospective_id = $1)`
 	_, err = tx.Exec(sqlQuery, id)
@@ -151,7 +168,7 @@ func (s *SQLite) DeleteRetrospective(ctx context.Context, id uuid.UUID) (*types.
 		return retro, err
 	}
 
-	return retro, nil
+	return retro, err
 }
 
 func (s *SQLite) GetOldRetrospectives(ctx context.Context, date time.Time) ([]uuid.UUID, error) {
@@ -231,7 +248,10 @@ func (s *SQLite) GetRetrospective(ctx context.Context, id uuid.UUID) (*types.Ret
 		}
 
 		// Query answers for the question
-		sqlQuery = `SELECT id, text, position, question_id FROM answers WHERE question_id = $1`
+		sqlQuery = `SELECT a.id, a.text, a.position, a.question_id, COUNT(av.id) as votes 
+		FROM answers a LEFT JOIN answer_votes av ON a.id = av.answer_id 
+		WHERE a.question_id = $1 
+		GROUP BY a.id`
 		answerRows, err := s.conn.Query(sqlQuery, question.ID)
 		if err != nil {
 			return nil, err
@@ -246,6 +266,7 @@ func (s *SQLite) GetRetrospective(ctx context.Context, id uuid.UUID) (*types.Ret
 				&answer.Text,
 				&answer.Position,
 				&answer.QuestionID,
+				&answer.Votes,
 			)
 			if err != nil {
 				return nil, err
@@ -336,6 +357,14 @@ func (s *SQLite) DeleteQuestion(ctx context.Context, id uuid.UUID) (*types.Quest
 		err = tx.Commit()
 	}()
 
+	// Delete answer votes associated with the question
+	sqlQuery = `DELETE FROM answer_votes WHERE answer_id IN 
+		(SELECT id FROM answers WHERE question_id = $1)`
+	_, err = tx.Exec(sqlQuery, id)
+	if err != nil {
+		return question, err
+	}
+
 	// Delete answers associated with questions of the retrospective
 	sqlQuery = `DELETE FROM answers WHERE question_id = $1`
 	_, err = tx.Exec(sqlQuery, id)
@@ -346,6 +375,9 @@ func (s *SQLite) DeleteQuestion(ctx context.Context, id uuid.UUID) (*types.Quest
 	// Delete questions associated with the retrospective
 	sqlQuery = `DELETE FROM questions WHERE id = $1`
 	_, err = tx.Exec(sqlQuery, id)
+	if err != nil {
+		return question, err
+	}
 
 	return question, nil
 }
@@ -419,6 +451,14 @@ func (s *SQLite) DeleteAnswer(ctx context.Context, answer *types.Answer) error {
 		err = tx.Commit()
 	}()
 
+	// Delete answer votes associated with the answer
+	sqlQuery = `DELETE FROM answer_votes WHERE answer_id = $1`
+	_, err = tx.Exec(sqlQuery, answer.ID)
+	if err != nil {
+		return err
+	}
+
+	// Delete the answer
 	sqlQuery = `DELETE FROM answers WHERE id = $1`
 	_, err = tx.Exec(sqlQuery, answer.ID)
 	if err != nil {
@@ -426,4 +466,60 @@ func (s *SQLite) DeleteAnswer(ctx context.Context, answer *types.Answer) error {
 	}
 
 	return nil
+}
+
+func (s *SQLite) AddVoteToAnswer(ctx context.Context, id uuid.UUID, voteRequest *types.Answer, sessionID string) error {
+	sqlQuery := `INSERT INTO answer_votes (id, answer_id, session_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`
+	rows, err := s.conn.Exec(sqlQuery,
+		id,
+		voteRequest.ID,
+		sessionID,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	affectedRows, _ := rows.RowsAffected()
+	if affectedRows == 0 {
+		return ErrRepoConflict
+	}
+
+	return s.refreshAnswerData(ctx, voteRequest)
+}
+
+func (s *SQLite) RemoveVoteFromAnswer(ctx context.Context, voteRequest *types.Answer, sessionID string) error {
+	sqlQuery := `DELETE FROM answer_votes WHERE answer_id = $1 AND session_id = $2`
+	rows, err := s.conn.Exec(sqlQuery,
+		voteRequest.ID,
+		sessionID,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	affectedRows, _ := rows.RowsAffected()
+	if affectedRows == 0 {
+		return ErrRepoNotFound
+	}
+
+	return s.refreshAnswerData(ctx, voteRequest)
+}
+
+func (s *SQLite) refreshAnswerData(ctx context.Context, answer *types.Answer) error {
+
+	sqlQuery := `SELECT a.id, a.text, a.position, a.question_id, COUNT(av.id) as votes 
+		FROM answers a LEFT JOIN answer_votes av ON a.id = av.answer_id 
+		WHERE a.id = $1 
+		GROUP BY a.id`
+
+	return s.conn.QueryRow(sqlQuery, answer.ID).Scan(
+		&answer.ID,
+		&answer.Text,
+		&answer.Position,
+		&answer.QuestionID,
+		&answer.Votes,
+	)
+
 }

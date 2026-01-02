@@ -97,3 +97,12 @@ func (a *AnswerCreateRequest) ValidateCreate() error {
 
 	return nil
 }
+
+func (a *AnswerVoteRequest) Validate() error {
+	switch a.Action {
+	case VoteAdd, VoteRemove:
+		return nil
+	default:
+		return fmt.Errorf("invalid vote action")
+	}
+}
