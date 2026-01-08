@@ -10,10 +10,17 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	swaggerFiles "github.com/swaggo/files"     // swagger embed files
 	ginSwagger "github.com/swaggo/gin-swagger" // gin-swagger middleware
+)
+
+const (
+	sessionIDKey = "session_id"
+	sessionName  = "simple-retro-session"
 )
 
 type controller struct {
@@ -26,6 +33,7 @@ func New(s *service.Service) *controller {
 	}
 }
 
+// CORSMiddleware to handle CORS headers
 func CORSMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		config := config.Get()
@@ -46,6 +54,8 @@ func CORSMiddleware() gin.HandlerFunc {
 	}
 }
 
+// Authenticate middleware to check for retrospective_id cookie
+// it sets the retrospective_id in the gin context if present
 func Authenticate() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		retroIDcookie, err := c.Cookie("retrospective_id")
@@ -65,6 +75,47 @@ func Authenticate() gin.HandlerFunc {
 
 		c.Set("retrospective_id", retroID)
 	}
+}
+
+// EnsureSessionID middleware to ensure session ID exists
+// it creates a new session ID if not present and saves it to the session store
+// the sessionID is stored under the key "session_id" in gin context.
+func EnsureSessionID() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		session := sessions.Default(c)
+
+		id := session.Get(sessionIDKey)
+		if id == nil {
+			newID := uuid.NewString()
+			session.Set(sessionIDKey, newID)
+
+			if err := session.Save(); err != nil {
+				// Fail hard: session must exist
+				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+					"error": "failed to create session",
+				})
+				return
+			}
+		}
+
+		c.Set(sessionIDKey, session.Get(sessionIDKey).(string))
+		c.Next()
+	}
+
+}
+
+func newSessionStore() gin.HandlerFunc {
+	conf := config.Get()
+
+	store := cookie.NewStore([]byte(conf.SessionSecret))
+	store.Options(sessions.Options{
+		Path:     "/",
+		MaxAge:   86400 * 7,
+		HttpOnly: true,
+		Secure:   !conf.Development, // true in prod with HTTPS
+	})
+
+	return sessions.Sessions(sessionName, store)
 }
 
 // health godoc
@@ -602,6 +653,9 @@ func (c *controller) Start() {
 	if config.Development {
 		router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	}
+
+	router.Use(newSessionStore())
+	router.Use(EnsureSessionID())
 
 	api := router.Group("/api")
 	api.GET("/health", c.health)

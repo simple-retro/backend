@@ -1,17 +1,21 @@
 package config
 
 import (
+	"fmt"
+	"log"
 	"os"
 
+	"github.com/joho/godotenv"
 	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
-	Name        string `yaml:"name"`
-	Development bool   `yaml:"development"`
-	Database    Database
-	Server      Server
-	Schedule    Schedule
+	Name          string `yaml:"name"`
+	Development   bool   `yaml:"development"`
+	Database      Database
+	Server        Server
+	Schedule      Schedule
+	SessionSecret string
 }
 
 type Schedule struct {
@@ -35,7 +39,7 @@ type Database struct {
 
 var config *Config
 
-func Load(filename string) (*Config, error) {
+func Load(filename string, envFilename string) (*Config, error) {
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, err
@@ -44,6 +48,16 @@ func Load(filename string) (*Config, error) {
 	var conf Config
 	if err := yaml.Unmarshal(data, &conf); err != nil {
 		return nil, err
+	}
+
+	err = godotenv.Load(envFilename)
+	if err != nil {
+		log.Println("No .env file found, relying on environment variables")
+	}
+
+	conf.SessionSecret = os.Getenv("SESSION_SECRET")
+	if conf.SessionSecret == "" {
+		return nil, fmt.Errorf("missing session secret in environment variables")
 	}
 
 	config = &conf
