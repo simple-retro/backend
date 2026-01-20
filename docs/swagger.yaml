@@ -14,8 +14,12 @@ definitions:
         type: string
       position:
         type: integer
+      question_id:
+        type: string
       text:
         type: string
+      votes:
+        type: integer
     type: object
   types.AnswerCreateRequest:
     properties:
@@ -23,6 +27,22 @@ definitions:
         type: string
       text:
         type: string
+    type: object
+  types.AnswerVoteRequest:
+    properties:
+      action:
+        $ref: '#/definitions/types.VoteAction'
+      answer_id:
+        type: string
+    type: object
+  types.ApiLimits:
+    properties:
+      answer:
+        $ref: '#/definitions/types.limits'
+      question:
+        $ref: '#/definitions/types.limits'
+      retrospective:
+        $ref: '#/definitions/types.limits'
     type: object
   types.Question:
     properties:
@@ -42,7 +62,11 @@ definitions:
     type: object
   types.Retrospective:
     properties:
+      created_at:
+        type: string
       description:
+        type: string
+      expire_at:
         type: string
       id:
         type: string
@@ -59,6 +83,23 @@ definitions:
         type: string
       name:
         type: string
+    type: object
+  types.VoteAction:
+    enum:
+    - ADD_VOTE
+    - REMOVE_VOTE
+    type: string
+    x-enum-varnames:
+    - VoteAdd
+    - VoteRemove
+  types.limits:
+    properties:
+      description:
+        type: integer
+      name:
+        type: integer
+      text:
+        type: integer
     type: object
 info:
   contact: {}
@@ -156,6 +197,43 @@ paths:
       summary: Update Answer
       tags:
       - Answer
+  /answer/vote:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Vote Answer
+        in: body
+        name: vote
+        required: true
+        schema:
+          $ref: '#/definitions/types.AnswerVoteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Vote recorded
+          schema:
+            type: string
+        "400":
+          description: Invalid input
+          schema:
+            type: string
+        "404":
+          description: Vote not found
+          schema:
+            type: string
+        "409":
+          description: Vote already exists
+          schema:
+            type: string
+        "500":
+          description: Internal error
+          schema:
+            type: string
+      summary: Vote Answer
+      tags:
+      - Answer
   /health:
     get:
       produces:
@@ -192,6 +270,20 @@ paths:
       summary: Subscribe to changes via web socket
       tags:
       - Websocket
+  /limits:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: API limits
+          schema:
+            $ref: '#/definitions/types.ApiLimits'
+        "500":
+          description: Internal error
+          schema:
+            type: string
+      summary: Get API limits
   /question:
     post:
       consumes:

@@ -22,6 +22,8 @@ type Repository interface {
 	CreateAnswer(ctx context.Context, answer *types.Answer) error
 	UpdateAnswer(ctx context.Context, answer *types.Answer) error
 	DeleteAnswer(ctx context.Context, answer *types.Answer) error
+	AddVoteToAnswer(ctx context.Context, id uuid.UUID, voteRequest *types.Answer, sessionID string) error
+	RemoveVoteFromAnswer(ctx context.Context, voteRequest *types.Answer, sessionID string) error
 }
 
 type WebSocketRepository interface {

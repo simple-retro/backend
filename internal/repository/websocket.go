@@ -15,6 +15,8 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+var _ WebSocketRepository = (*WebSocket)(nil)
+
 type WebSocket struct {
 	connections map[uuid.UUID][]*websocket.Conn
 }
@@ -220,4 +222,26 @@ func (w *WebSocket) UpdateRetrospective(ctx context.Context, retro *types.Retros
 	}
 
 	return w.sendMessageToRetro(ctx, message, &retro.ID)
+}
+
+// AddVoteToAnswer implements Repository.
+func (w *WebSocket) AddVoteToAnswer(ctx context.Context, _ uuid.UUID, answer *types.Answer, _ string) error {
+	message := types.WebSocketMessage{
+		Action: "add_vote",
+		Type:   "answer",
+		Value:  answer,
+	}
+
+	return w.sendMessageToRetro(ctx, message, nil)
+}
+
+// RemoveVoteFromAnswer implements Repository.
+func (w *WebSocket) RemoveVoteFromAnswer(ctx context.Context, answer *types.Answer, _ string) error {
+	message := types.WebSocketMessage{
+		Action: "remove_vote",
+		Type:   "answer",
+		Value:  answer,
+	}
+
+	return w.sendMessageToRetro(ctx, message, nil)
 }

@@ -22,3 +22,12 @@ CREATE TABLE IF NOT EXISTS answers (
     question_id TEXT,
     FOREIGN KEY(question_id) REFERENCES questions(id)
 );
+
+-- Table for Answer Vote
+CREATE TABLE IF NOT EXISTS answer_votes (
+    id        TEXT PRIMARY KEY,
+    answer_id TEXT,
+    session_id TEXT,
+    FOREIGN KEY(answer_id) REFERENCES answers(id),
+    UNIQUE(answer_id, session_id)
+);

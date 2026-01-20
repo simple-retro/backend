@@ -64,6 +64,63 @@ const docTemplate = `{
                 }
             }
         },
+        "/answer/vote": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Answer"
+                ],
+                "summary": "Vote Answer",
+                "parameters": [
+                    {
+                        "description": "Vote Answer",
+                        "name": "vote",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/types.AnswerVoteRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Vote recorded",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Vote not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "409": {
+                        "description": "Vote already exists",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/answer/{id}": {
             "delete": {
                 "consumes": [
@@ -204,6 +261,28 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/limits": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Get API limits",
+                "responses": {
+                    "200": {
+                        "description": "API limits",
+                        "schema": {
+                            "$ref": "#/definitions/types.ApiLimits"
+                        }
+                    },
                     "500": {
                         "description": "Internal error",
                         "schema": {
@@ -564,8 +643,14 @@ const docTemplate = `{
                 "position": {
                     "type": "integer"
                 },
+                "question_id": {
+                    "type": "string"
+                },
                 "text": {
                     "type": "string"
+                },
+                "votes": {
+                    "type": "integer"
                 }
             }
         },
@@ -577,6 +662,31 @@ const docTemplate = `{
                 },
                 "text": {
                     "type": "string"
+                }
+            }
+        },
+        "types.AnswerVoteRequest": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "$ref": "#/definitions/types.VoteAction"
+                },
+                "answer_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "types.ApiLimits": {
+            "type": "object",
+            "properties": {
+                "answer": {
+                    "$ref": "#/definitions/types.limits"
+                },
+                "question": {
+                    "$ref": "#/definitions/types.limits"
+                },
+                "retrospective": {
+                    "$ref": "#/definitions/types.limits"
                 }
             }
         },
@@ -608,7 +718,13 @@ const docTemplate = `{
         "types.Retrospective": {
             "type": "object",
             "properties": {
+                "created_at": {
+                    "type": "string"
+                },
                 "description": {
+                    "type": "string"
+                },
+                "expire_at": {
                     "type": "string"
                 },
                 "id": {
@@ -633,6 +749,31 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                }
+            }
+        },
+        "types.VoteAction": {
+            "type": "string",
+            "enum": [
+                "ADD_VOTE",
+                "REMOVE_VOTE"
+            ],
+            "x-enum-varnames": [
+                "VoteAdd",
+                "VoteRemove"
+            ]
+        },
+        "types.limits": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "integer"
+                },
+                "text": {
+                    "type": "integer"
                 }
             }
         }

@@ -5,6 +5,8 @@ import (
 	"api/internal/repository"
 	"api/types"
 	"context"
+	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -16,6 +18,11 @@ type Service struct {
 	repository          repository.Repository
 	webSocketRepository repository.WebSocketRepository
 }
+
+var (
+	ErrVoteAlreadyExists = errors.New("vote already exists")
+	ErrVoteNotFound      = errors.New("vote not found")
+)
 
 func New(repo repository.Repository, webSocketRepo repository.WebSocketRepository) *Service {
 	return &Service{
@@ -44,6 +51,10 @@ func (s *Service) GetRetrospective(ctx context.Context, id uuid.UUID) (*types.Re
 	cleanUpDays := time.Duration(config.Schedule.CleanUpDays)
 
 	retro, err := s.repository.GetRetrospective(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
 	retro.ExpireAt = retro.CreatedAt.Add(cleanUpDays * 24 * time.Hour)
 	return retro, err
 }
@@ -98,7 +109,7 @@ func (s *Service) DeleteQuestion(ctx context.Context, id uuid.UUID) (*types.Ques
 func (s *Service) CreateAnswer(ctx context.Context, answer *types.Answer) error {
 	id, err := uuid.NewV7()
 	if err != nil {
-		return nil
+		return err
 	}
 
 	answer.ID = id
@@ -124,6 +135,44 @@ func (s *Service) DeleteAnswer(ctx context.Context, answer *types.Answer) error 
 	}
 	err = s.webSocketRepository.DeleteAnswer(ctx, answer)
 	return err
+}
+
+func (s *Service) VoteAnswer(ctx context.Context, voteRequest *types.Answer, voteAction types.VoteAction, sessionID string) error {
+
+	switch voteAction {
+	case types.VoteAdd:
+		id, err := uuid.NewV7()
+		if err != nil {
+			return err
+		}
+
+		err = s.repository.AddVoteToAnswer(ctx, id, voteRequest, sessionID)
+		if err == nil {
+			return s.webSocketRepository.AddVoteToAnswer(ctx, id, voteRequest, sessionID)
+		}
+
+		switch err {
+		case repository.ErrRepoConflict:
+			return ErrVoteAlreadyExists
+		default:
+			return err
+		}
+
+	case types.VoteRemove:
+		err := s.repository.RemoveVoteFromAnswer(ctx, voteRequest, sessionID)
+		if err == nil {
+			return s.webSocketRepository.RemoveVoteFromAnswer(ctx, voteRequest, sessionID)
+		}
+
+		switch err {
+		case repository.ErrRepoNotFound:
+			return ErrVoteNotFound
+		default:
+			return err
+		}
+	}
+
+	return fmt.Errorf("invalid vote action: %s", voteAction.String())
 }
 
 func (s *Service) SubscribeChanges(ctx context.Context, w http.ResponseWriter, r *http.Request) error {

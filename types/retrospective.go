@@ -6,6 +6,13 @@ import (
 	"github.com/google/uuid"
 )
 
+type VoteAction string
+
+const (
+	VoteAdd    VoteAction = "ADD_VOTE"
+	VoteRemove VoteAction = "REMOVE_VOTE"
+)
+
 type Retrospective struct {
 	ID          uuid.UUID  `json:"id"`
 	Name        string     `json:"name"`
@@ -26,6 +33,7 @@ type Answer struct {
 	QuestionID uuid.UUID `json:"question_id"`
 	Text       string    `json:"text"`
 	Position   int       `json:"position"`
+	Votes      int       `json:"votes"`
 }
 
 type RetrospectiveCreateRequest struct {
@@ -40,4 +48,13 @@ type QuestionCreateRequest struct {
 type AnswerCreateRequest struct {
 	QuestionID uuid.UUID `json:"question_id"`
 	Text       string    `json:"text"`
+}
+
+type AnswerVoteRequest struct {
+	AnswerID uuid.UUID  `json:"answer_id"`
+	Action   VoteAction `json:"action"`
+}
+
+func (v VoteAction) String() string {
+	return string(v)
 }
