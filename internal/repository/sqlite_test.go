@@ -5,6 +5,7 @@ import (
 	"api/types"
 	"context"
 	"database/sql"
+	"os"
 	"testing"
 	"time"
 
@@ -12,6 +13,12 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestMain(m *testing.M) {
+	// Change working directory to project root
+	os.Chdir("../..")
+	os.Exit(m.Run())
+}
 
 func createGenericRetrospective(db *SQLite) (*types.Retrospective, error) {
 	id, err := uuid.NewV7()
@@ -55,7 +62,7 @@ func createGenericQuestion(db *SQLite, retro *types.Retrospective) (*types.Quest
 }
 
 func TestCreateRetrospective(t *testing.T) {
-	_, err := config.Load("../../config/config_test.yaml", "../../config/test.env")
+	_, err := config.Load("config/config_test.yaml", "config/test.env")
 	assert.Nilf(t, err, "error loading config")
 
 	db, err := NewSQLite()
@@ -86,7 +93,7 @@ func TestCreateRetrospective(t *testing.T) {
 }
 
 func TestUpdateRetrospective(t *testing.T) {
-	_, err := config.Load("../../config/config_test.yaml", "../../config/test.env")
+	_, err := config.Load("config/config_test.yaml", "config/test.env")
 	assert.Nilf(t, err, "error loading config")
 
 	db, err := NewSQLite()
@@ -115,7 +122,7 @@ func TestUpdateRetrospective(t *testing.T) {
 }
 
 func TestDeleteRetrospective(t *testing.T) {
-	_, err := config.Load("../../config/config_test.yaml", "../../config/test.env")
+	_, err := config.Load("config/config_test.yaml", "config/test.env")
 	assert.Nilf(t, err, "error loading config")
 
 	db, err := NewSQLite()
@@ -142,7 +149,7 @@ func TestDeleteRetrospective(t *testing.T) {
 }
 
 func TestGetRetrospective(t *testing.T) {
-	_, err := config.Load("../../config/config_test.yaml", "../../config/test.env")
+	_, err := config.Load("config/config_test.yaml", "config/test.env")
 	assert.Nilf(t, err, "error loading config")
 
 	db, err := NewSQLite()
@@ -214,7 +221,7 @@ func TestGetRetrospective(t *testing.T) {
 }
 
 func TestGetAllRetrospective(t *testing.T) {
-	_, err := config.Load("../../config/config_test.yaml", "../../config/test.env")
+	_, err := config.Load("config/config_test.yaml", "config/test.env")
 	assert.Nilf(t, err, "error loading config")
 
 	db, err := NewSQLite()
@@ -273,7 +280,7 @@ func TestGetAllRetrospective(t *testing.T) {
 }
 
 func TestCreateQuestion(t *testing.T) {
-	_, err := config.Load("../../config/config_test.yaml", "../../config/test.env")
+	_, err := config.Load("config/config_test.yaml", "config/test.env")
 	assert.Nilf(t, err, "error loading config")
 
 	db, err := NewSQLite()
@@ -305,7 +312,7 @@ func TestCreateQuestion(t *testing.T) {
 }
 
 func TestUpdateQuestion(t *testing.T) {
-	_, err := config.Load("../../config/config_test.yaml", "../../config/test.env")
+	_, err := config.Load("config/config_test.yaml", "config/test.env")
 	assert.Nilf(t, err, "error loading config")
 
 	db, err := NewSQLite()
@@ -338,7 +345,7 @@ func TestUpdateQuestion(t *testing.T) {
 }
 
 func TestDeleteQuestion(t *testing.T) {
-	_, err := config.Load("../../config/config_test.yaml", "../../config/test.env")
+	_, err := config.Load("config/config_test.yaml", "config/test.env")
 	assert.Nilf(t, err, "error loading config")
 
 	db, err := NewSQLite()

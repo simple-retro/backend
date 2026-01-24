@@ -11,7 +11,7 @@ database:
   address: ":memory:"
   cache: "shared"
   max_conn: 20
-  schema: "../../database/schema.sql"
+  schema: "database/schema.sql"
 
 schedule:
   clean_up_days: 1
