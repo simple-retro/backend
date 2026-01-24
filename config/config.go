@@ -67,3 +67,14 @@ func Load(filename string, envFilename string) (*Config, error) {
 func Get() *Config {
 	return config
 }
+
+// ConfigPaths holds the paths for config and env files
+type ConfigPaths struct {
+	ConfigFile string
+	EnvFile    string
+}
+
+// NewConfig creates a new config instance for FX dependency injection
+func NewConfig(paths ConfigPaths) (*Config, error) {
+	return Load(paths.ConfigFile, paths.EnvFile)
+}

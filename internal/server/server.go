@@ -5,6 +5,7 @@ import (
 	"api/docs"
 	"api/internal/service"
 	"api/types"
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -16,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	swaggerFiles "github.com/swaggo/files"     // swagger embed files
 	ginSwagger "github.com/swaggo/gin-swagger" // gin-swagger middleware
+	"go.uber.org/fx"
 )
 
 const (
@@ -23,21 +25,42 @@ const (
 	sessionName  = "simple-retro-session"
 )
 
-type controller struct {
+type Controller struct {
 	service *service.Service
+	config  *config.Config
+	server  *http.Server
 }
 
-func New(s *service.Service) *controller {
-	return &controller{
-		service: s,
+type ControllerParams struct {
+	fx.In
+	Service   *service.Service
+	Config    *config.Config
+	Lifecycle fx.Lifecycle
+}
+
+func New(p ControllerParams) *Controller {
+	c := &Controller{
+		service: p.Service,
+		config:  p.Config,
 	}
+
+	p.Lifecycle.Append(fx.Hook{
+		OnStart: func(ctx context.Context) error {
+			go c.Start()
+			return nil
+		},
+		OnStop: func(ctx context.Context) error {
+			return c.stop(ctx)
+		},
+	})
+
+	return c
 }
 
 // CORSMiddleware to handle CORS headers
-func CORSMiddleware() gin.HandlerFunc {
+func CORSMiddleware(conf *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		config := config.Get()
-		c.Header("Access-Control-Allow-Origin", fmt.Sprintf("http://%s:5173", config.Server.Host))
+		c.Header("Access-Control-Allow-Origin", fmt.Sprintf("http://%s:5173", conf.Server.Host))
 		c.Header("Access-Control-Allow-Credentials", "true")
 		c.Header(
 			"Access-Control-Allow-Headers",
@@ -104,9 +127,7 @@ func EnsureSessionID() gin.HandlerFunc {
 
 }
 
-func newSessionStore() gin.HandlerFunc {
-	conf := config.Get()
-
+func newSessionStore(conf *config.Config) gin.HandlerFunc {
 	store := cookie.NewStore([]byte(conf.SessionSecret))
 	store.Options(sessions.Options{
 		Path:     "/",
@@ -126,7 +147,7 @@ func newSessionStore() gin.HandlerFunc {
 //	@Success	200	{object}	health	"API metrics"
 //	@Failure	500	{string}	string	"Internal error"
 //	@Router		/health [get]
-func (ct *controller) health(c *gin.Context) {
+func (ct *Controller) health(c *gin.Context) {
 	health, err := getServiceHealth()
 	if err != nil {
 		log.Printf("error getting service health: %s", err.Error())
@@ -148,7 +169,7 @@ func (ct *controller) health(c *gin.Context) {
 //	@Failure	400				{string}	string								"Invalid input"
 //	@Failure	500				{string}	string								"Internal error"
 //	@Router		/retrospective [post]
-func (ct *controller) createRetrospective(c *gin.Context) {
+func (ct *Controller) createRetrospective(c *gin.Context) {
 	var input types.RetrospectiveCreateRequest
 	if err := c.BindJSON(&input); err != nil {
 		log.Printf("error parsing body content: %s", err.Error())
@@ -189,7 +210,7 @@ func (ct *controller) createRetrospective(c *gin.Context) {
 //	@Failure	404	{string}	string				"Not Found"
 //	@Failure	500	{string}	string				"Internal error"
 //	@Router		/retrospective/{id} [get]
-func (ct *controller) getRetrospective(c *gin.Context) {
+func (ct *Controller) getRetrospective(c *gin.Context) {
 	input := c.Param("id")
 	id, err := uuid.Parse(input)
 	if err != nil {
@@ -228,7 +249,7 @@ func (ct *controller) getRetrospective(c *gin.Context) {
 //	@Failure	404				{string}	string								"Not Found"
 //	@Failure	500				{string}	string								"Internal error"
 //	@Router		/retrospective/{id} [patch]
-func (ct *controller) updateRetrospective(c *gin.Context) {
+func (ct *Controller) updateRetrospective(c *gin.Context) {
 	input := c.Param("id")
 	id, err := uuid.Parse(input)
 	if err != nil {
@@ -285,7 +306,7 @@ func (ct *controller) updateRetrospective(c *gin.Context) {
 //	@Failure	404	{string}	string				"Not Found"
 //	@Failure	500	{string}	string				"Internal error"
 //	@Router		/retrospective/{id} [delete]
-func (ct *controller) deleteRetrospective(c *gin.Context) {
+func (ct *Controller) deleteRetrospective(c *gin.Context) {
 	input := c.Param("id")
 	id, err := uuid.Parse(input)
 	if err != nil {
@@ -320,7 +341,7 @@ func (ct *controller) deleteRetrospective(c *gin.Context) {
 //	@Success	200			{object}	types.Question				"Retrospective Object"
 //	@Failure	500			{string}	string						"Internal error"
 //	@Router		/question [post]
-func (ct *controller) createQuestion(c *gin.Context) {
+func (ct *Controller) createQuestion(c *gin.Context) {
 	var input types.QuestionCreateRequest
 	if err := c.BindJSON(&input); err != nil {
 		log.Printf("error parsing body content: %s", err.Error())
@@ -366,7 +387,7 @@ func (ct *controller) createQuestion(c *gin.Context) {
 //	@Failure	404				{string}	string						"Not Found"
 //	@Failure	500				{string}	string						"Internal error"
 //	@Router		/question/{id} [patch]
-func (ct *controller) updateQuestion(c *gin.Context) {
+func (ct *Controller) updateQuestion(c *gin.Context) {
 	input := c.Param("id")
 	id, err := uuid.Parse(input)
 	if err != nil {
@@ -422,7 +443,7 @@ func (ct *controller) updateQuestion(c *gin.Context) {
 //	@Failure	404	{string}	string			"Not Found"
 //	@Failure	500	{string}	string			"Internal error"
 //	@Router		/question/{id} [delete]
-func (ct *controller) deleteQuestion(c *gin.Context) {
+func (ct *Controller) deleteQuestion(c *gin.Context) {
 	input := c.Param("id")
 	id, err := uuid.Parse(input)
 	if err != nil {
@@ -456,7 +477,7 @@ func (ct *controller) deleteQuestion(c *gin.Context) {
 //	@Param		id	path		string	true	"Repository ID"
 //	@Failure	500	{string}	string	"Internal error"
 //	@Router		/hello [get]
-func (ct *controller) subscribeChanges(c *gin.Context) {
+func (ct *Controller) subscribeChanges(c *gin.Context) {
 	var err error
 	retroIDparam := c.Param("id")
 	if retroIDparam == "" {
@@ -494,7 +515,7 @@ func (ct *controller) subscribeChanges(c *gin.Context) {
 //	@Failure	400			{string}	string						"Invalid input"
 //	@Failure	500			{string}	string						"Internal error"
 //	@Router		/answer [post]
-func (ct *controller) createAnswer(c *gin.Context) {
+func (ct *Controller) createAnswer(c *gin.Context) {
 	var input *types.AnswerCreateRequest
 	if err := c.BindJSON(&input); err != nil {
 		log.Printf("error parsing body content: %s", err.Error())
@@ -535,7 +556,7 @@ func (ct *controller) createAnswer(c *gin.Context) {
 //	@Failure	400		{string}	string						"Invalid input"
 //	@Failure	500		{string}	string						"Internal error"
 //	@Router		/answer/{id} [patch]
-func (ct *controller) updateAnswer(c *gin.Context) {
+func (ct *Controller) updateAnswer(c *gin.Context) {
 	input := c.Param("id")
 	id, err := uuid.Parse(input)
 	if err != nil {
@@ -590,7 +611,7 @@ func (ct *controller) updateAnswer(c *gin.Context) {
 //	@Failure	400	{string}	string			"Invalid input"
 //	@Failure	500	{string}	string			"Internal error"
 //	@Router		/answer/{id} [delete]
-func (ct *controller) deleteAnswer(c *gin.Context) {
+func (ct *Controller) deleteAnswer(c *gin.Context) {
 	input := c.Param("id")
 	id, err := uuid.Parse(input)
 	if err != nil {
@@ -625,7 +646,7 @@ func (ct *controller) deleteAnswer(c *gin.Context) {
 //	@Success	200	{object}	types.ApiLimits	"API limits"
 //	@Failure	500	{string}	string			"Internal error"
 //	@Router		/limits [get]
-func (ct *controller) getLimits(c *gin.Context) {
+func (ct *Controller) getLimits(c *gin.Context) {
 	limits := ct.service.GetLimits(c)
 
 	c.JSON(http.StatusOK, limits)
@@ -644,7 +665,7 @@ func (ct *controller) getLimits(c *gin.Context) {
 //	@Failure	409		{string}	string					"Vote already exists"
 //	@Failure	500		{string}	string					"Internal error"
 //	@Router		/answer/vote [post]
-func (ct *controller) voteAnswer(c *gin.Context) {
+func (ct *Controller) voteAnswer(c *gin.Context) {
 	var input types.AnswerVoteRequest
 	if err := c.BindJSON(&input); err != nil {
 		log.Printf("error parsing body content: %s", err.Error())
@@ -685,49 +706,66 @@ func (ct *controller) voteAnswer(c *gin.Context) {
 
 // @license.name	MIT
 // @license.url	https://github.com/simple-retro/api/blob/master/LICENSE
-func (c *controller) Start() {
-	config := config.Get()
+func (ct *Controller) Start() {
+	conf := ct.config
 
 	// Swagger
-	docs.SwaggerInfo.Title = config.Name
+	docs.SwaggerInfo.Title = conf.Name
 	docs.SwaggerInfo.Description = "API service to Simple Retro project"
 	docs.SwaggerInfo.Version = "1.0"
-	docs.SwaggerInfo.Host = fmt.Sprintf("%s:%d", config.Server.Host, config.Server.Port)
+	docs.SwaggerInfo.Host = fmt.Sprintf("%s:%d", conf.Server.Host, conf.Server.Port)
 	docs.SwaggerInfo.BasePath = "/api"
 	docs.SwaggerInfo.Schemes = []string{"http", "https"}
 
 	router := gin.Default()
 
-	if config.Server.WithCors {
-		router.Use(CORSMiddleware())
+	if conf.Server.WithCors {
+		router.Use(CORSMiddleware(conf))
 	}
 
-	if config.Development {
+	if conf.Development {
 		router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	}
 
-	router.Use(newSessionStore())
+	router.Use(newSessionStore(conf))
 	router.Use(EnsureSessionID())
 
 	api := router.Group("/api")
-	api.GET("/health", c.health)
-	api.POST("/retrospective", c.createRetrospective)
-	api.GET("/retrospective/:id", c.getRetrospective)
-	api.PATCH("/retrospective/:id", c.updateRetrospective)
-	api.DELETE("/retrospective/:id", c.deleteRetrospective)
-	api.GET("/hello/:id", c.subscribeChanges)
-	api.GET("/limits", c.getLimits)
+	api.GET("/health", ct.health)
+	api.POST("/retrospective", ct.createRetrospective)
+	api.GET("/retrospective/:id", ct.getRetrospective)
+	api.PATCH("/retrospective/:id", ct.updateRetrospective)
+	api.DELETE("/retrospective/:id", ct.deleteRetrospective)
+	api.GET("/hello/:id", ct.subscribeChanges)
+	api.GET("/limits", ct.getLimits)
 
 	authorized := api.Group("/")
 	authorized.Use(Authenticate())
-	authorized.POST("/question", c.createQuestion)
-	authorized.PATCH("/question/:id", c.updateQuestion)
-	authorized.DELETE("/question/:id", c.deleteQuestion)
+	authorized.POST("/question", ct.createQuestion)
+	authorized.PATCH("/question/:id", ct.updateQuestion)
+	authorized.DELETE("/question/:id", ct.deleteQuestion)
 
-	authorized.POST("/answer", c.createAnswer)
-	authorized.PATCH("/answer/:id", c.updateAnswer)
-	authorized.DELETE("/answer/:id", c.deleteAnswer)
-	authorized.POST("/answer/vote", c.voteAnswer)
+	authorized.POST("/answer", ct.createAnswer)
+	authorized.PATCH("/answer/:id", ct.updateAnswer)
+	authorized.DELETE("/answer/:id", ct.deleteAnswer)
+	authorized.POST("/answer/vote", ct.voteAnswer)
 
-	router.Run(fmt.Sprintf(":%d", config.Server.Port))
+	addr := fmt.Sprintf(":%d", conf.Server.Port)
+	ct.server = &http.Server{
+		Addr:    addr,
+		Handler: router,
+	}
+
+	log.Printf("starting server on %s", addr)
+	if err := ct.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Fatalf("error starting server: %s", err.Error())
+	}
+}
+
+func (ct *Controller) stop(ctx context.Context) error {
+	if ct.server != nil {
+		log.Println("shutting down server...")
+		return ct.server.Shutdown(ctx)
+	}
+	return nil
 }

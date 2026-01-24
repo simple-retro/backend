@@ -1,39 +1,44 @@
 package main
 
 import (
+	"context"
+	"log"
+
 	"api/config"
 	"api/internal/repository"
 	"api/internal/schedule"
 	"api/internal/server"
 	"api/internal/service"
-	"context"
-	"log"
+
+	"go.uber.org/fx"
 )
 
 func main() {
-	config, err := config.Load("config/config.yaml", "config/.env")
-	if err != nil {
-		log.Fatalf("error loading config: %s", err.Error())
-	}
-
-	repo, err := repository.NewSQLite()
-	if err != nil {
-		log.Fatalf("error creating repository: %s", err.Error())
-	}
-
-	wsrepo, err := repository.NewWebSocket()
-	if err != nil {
-		log.Fatalf("error creating repository: %s", err.Error())
-	}
-
-	service := service.New(repo, wsrepo)
-	service.LoadAllRetrospectives(context.Background())
-
-	controller := server.New(service)
-
-	schedule := schedule.New(service)
-	schedule.Start()
-
-	log.Printf("initing service: %s", config.Name)
-	controller.Start()
+	fx.New(
+		fx.Provide(
+			// Config file paths
+			func() config.ConfigPaths {
+				return config.ConfigPaths{
+					ConfigFile: "config/config.yaml",
+					EnvFile:    "config/.env",
+				}
+			},
+			config.NewConfig,
+			repository.NewSQLite,
+			repository.NewWebSocket,
+			service.New,
+		),
+		fx.Invoke(
+			// Load all retrospectives on startup
+			func(svc *service.Service) error {
+				if err := svc.LoadAllRetrospectives(context.Background()); err != nil {
+					log.Printf("error loading retrospectives: %s", err.Error())
+					return err
+				}
+				return nil
+			},
+			server.New,
+			schedule.New,
+		),
+	).Run()
 }

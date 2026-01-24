@@ -1,8 +1,6 @@
 package repository
 
 import (
-	"api/config"
-	"api/types"
 	"context"
 	"database/sql"
 	"errors"
@@ -10,14 +8,24 @@ import (
 	"os"
 	"time"
 
+	"api/config"
+	"api/types"
+
 	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
+	"go.uber.org/fx"
 )
 
 var _ Repository = (*SQLite)(nil)
 
 type SQLite struct {
-	conn *sql.DB
+	conn   *sql.DB
+	config *config.Config
+}
+
+type SQLiteParams struct {
+	fx.In
+	Config *config.Config
 }
 
 var (
@@ -25,18 +33,17 @@ var (
 	ErrRepoNotFound = errors.New("not found")
 )
 
-func NewSQLite() (*SQLite, error) {
-	conf := config.Get()
+func NewSQLite(p SQLiteParams) (Repository, error) {
 	db, err := sql.Open(
 		"sqlite3",
-		fmt.Sprintf("%s%s?_foreign_keys=on&cache=%s", conf.Database.Type, conf.Database.Address, conf.Database.Cache),
+		fmt.Sprintf("%s%s?_foreign_keys=on&cache=%s", p.Config.Database.Type, p.Config.Database.Address, p.Config.Database.Cache),
 	)
 	if err != nil {
 		return nil, err
 	}
 
 	// Set the maximum number of open connections
-	db.SetMaxOpenConns(conf.Database.MaxConn)
+	db.SetMaxOpenConns(p.Config.Database.MaxConn)
 
 	// Ping to check if the database connection is established
 	err = db.Ping()
@@ -45,10 +52,11 @@ func NewSQLite() (*SQLite, error) {
 	}
 
 	repo := &SQLite{
-		conn: db,
+		conn:   db,
+		config: p.Config,
 	}
 
-	err = repo.migrate(conf.Database.Schema)
+	err = repo.migrate(p.Config.Database.Schema)
 	if err != nil {
 		return nil, err
 	}
@@ -475,7 +483,6 @@ func (s *SQLite) AddVoteToAnswer(ctx context.Context, id uuid.UUID, voteRequest 
 		voteRequest.ID,
 		sessionID,
 	)
-
 	if err != nil {
 		return err
 	}
@@ -494,7 +501,6 @@ func (s *SQLite) RemoveVoteFromAnswer(ctx context.Context, voteRequest *types.An
 		voteRequest.ID,
 		sessionID,
 	)
-
 	if err != nil {
 		return err
 	}
@@ -508,7 +514,6 @@ func (s *SQLite) RemoveVoteFromAnswer(ctx context.Context, voteRequest *types.An
 }
 
 func (s *SQLite) refreshAnswerData(ctx context.Context, answer *types.Answer) error {
-
 	sqlQuery := `SELECT a.id, a.text, a.position, a.question_id, COUNT(av.id) as votes 
 		FROM answers a LEFT JOIN answer_votes av ON a.id = av.answer_id 
 		WHERE a.id = $1 
@@ -521,5 +526,4 @@ func (s *SQLite) refreshAnswerData(ctx context.Context, answer *types.Answer) er
 		&answer.QuestionID,
 		&answer.Votes,
 	)
-
 }

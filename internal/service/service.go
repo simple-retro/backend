@@ -1,9 +1,6 @@
 package service
 
 import (
-	"api/config"
-	"api/internal/repository"
-	"api/types"
 	"context"
 	"errors"
 	"fmt"
@@ -11,23 +8,38 @@ import (
 	"net/http"
 	"time"
 
+	"go.uber.org/fx"
+
+	"api/config"
+	"api/internal/repository"
+	"api/types"
+
 	"github.com/google/uuid"
 )
-
-type Service struct {
-	repository          repository.Repository
-	webSocketRepository repository.WebSocketRepository
-}
 
 var (
 	ErrVoteAlreadyExists = errors.New("vote already exists")
 	ErrVoteNotFound      = errors.New("vote not found")
 )
 
-func New(repo repository.Repository, webSocketRepo repository.WebSocketRepository) *Service {
+type Service struct {
+	repository          repository.Repository
+	webSocketRepository repository.WebSocketRepository
+	config              *config.Config
+}
+
+type ServiceParams struct {
+	fx.In
+	Repository          repository.Repository
+	WebSocketRepository repository.WebSocketRepository
+	Config              *config.Config
+}
+
+func New(p ServiceParams) *Service {
 	return &Service{
-		repository:          repo,
-		webSocketRepository: webSocketRepo,
+		repository:          p.Repository,
+		webSocketRepository: p.WebSocketRepository,
+		config:              p.Config,
 	}
 }
 
@@ -47,8 +59,7 @@ func (s *Service) CreateRetrospective(ctx context.Context, retro *types.Retrospe
 }
 
 func (s *Service) GetRetrospective(ctx context.Context, id uuid.UUID) (*types.Retrospective, error) {
-	config := config.Get()
-	cleanUpDays := time.Duration(config.Schedule.CleanUpDays)
+	cleanUpDays := time.Duration(s.config.Schedule.CleanUpDays)
 
 	retro, err := s.repository.GetRetrospective(ctx, id)
 	if err != nil {
@@ -60,8 +71,7 @@ func (s *Service) GetRetrospective(ctx context.Context, id uuid.UUID) (*types.Re
 }
 
 func (s *Service) DeleteRetrospective(ctx context.Context, id uuid.UUID) (*types.Retrospective, error) {
-	config := config.Get()
-	cleanUpDays := time.Duration(config.Schedule.CleanUpDays)
+	cleanUpDays := time.Duration(s.config.Schedule.CleanUpDays)
 	retro, err := s.repository.DeleteRetrospective(ctx, id)
 	if err != nil {
 		return nil, err
@@ -138,7 +148,6 @@ func (s *Service) DeleteAnswer(ctx context.Context, answer *types.Answer) error 
 }
 
 func (s *Service) VoteAnswer(ctx context.Context, voteRequest *types.Answer, voteAction types.VoteAction, sessionID string) error {
-
 	switch voteAction {
 	case types.VoteAdd:
 		id, err := uuid.NewV7()
@@ -200,8 +209,7 @@ func (s *Service) GetLimits(ctx context.Context) *types.ApiLimits {
 }
 
 func (s *Service) CleanUpRetros(ctx context.Context) error {
-	config := config.Get()
-	cleanUpDays := time.Duration(config.Schedule.CleanUpDays)
+	cleanUpDays := time.Duration(s.config.Schedule.CleanUpDays)
 	date := time.Now().Add(-(cleanUpDays * 24 * time.Hour))
 	ids, err := s.repository.GetOldRetrospectives(ctx, date)
 	if err != nil {
