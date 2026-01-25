@@ -1,8 +1,10 @@
 # 👨‍💻 Simple Retro
 
+Backend service for the Simple Retro website. This API provides endpoints for managing retrospectives, including creating and managing retrospective sessions, questions, answers, and real-time updates via WebSocket.
+
 ## 🔥 | Running the project
 
-To run Simple Retro API, you need to have [Golang](https://go.dev/) in your machine. We recommend at least version 1.21.
+To run Simple Retro API, you need to have [Golang](https://go.dev/) in your machine
 
 1. 🧹 Clone the repository
 
@@ -16,7 +18,15 @@ git clone git@github.com:simple-retro/backend.git
 go get .
 ```
 
-3. 🏃‍♂️ Running
+3. 📝 Set up environment variables
+
+Copy the test environment file to create your local `.env` file:
+
+```bash
+cp config/test.env config/.env
+```
+
+4. 🏃‍♂️ Running
 
 ```bash
 go run main.go
@@ -54,13 +64,47 @@ docker build -t backend:<version> .
 docker compose up -d
 ```
 
-## 🔨 | Made With 
- 
-- [Go](https://go.dev/) 
-- [Gin](https://github.com/gin-gonic/gin) 
-- [Swag](https://github.com/swaggo/swag)
-- [SQLite3](https://github.com/mattn/go-sqlite3)
-- [Gorilla Websocket](https://github.com/gorilla/websocket)
+## 🧪 | Running Tests
+
+### Unit Tests
+
+Run unit tests with:
+
+```bash
+go test -v $(go list ./... | grep -v /integration_test)
+```
+
+### Integration Tests
+
+Integration tests require the service to be running first.
+
+1. Start the service:
+
+```bash
+go run main.go
+```
+
+2. In another terminal, run the integration tests:
+
+```bash
+API_BASE_URL=http://127.0.0.1:8080 go test -v ./integration_test/...
+```
+
+### Testing with Act
+
+You can use [act](https://github.com/nektos/act) to test GitHub Actions locally.
+
+For unit tests:
+
+```bash
+act -j unit-tests
+```
+
+For integration tests, you need to use the `--bind` flag:
+
+```bash
+act -j integration-tests --bind
+```
 
 ## ⚖️ | License
 
