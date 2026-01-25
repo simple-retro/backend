@@ -1,0 +1,48 @@
+name: Integration Tests
+on: [push]
+
+jobs:
+  integration-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.25
+
+      - name: Build Docker image
+        run: |
+          docker build -t simple-retro-backend:test \
+          --build-arg CONFIG_FILE=config/config_test.yaml \
+          --build-arg PORT=8080 .
+
+      - name: Start service container
+        run: |
+          docker run -d \
+            --name backend-test \
+            --network host \
+            -p 8080:8080 \
+            -e SESSION_SECRET=integration-test \
+            simple-retro-backend:test
+
+          # Wait for service to be ready
+          for i in {1..30}; do
+            if curl -s http://127.0.0.1:8080/api/health > /dev/null; then
+              echo "Service is ready"
+              break
+            fi
+            echo "Waiting for service..."
+            sleep 1
+          done
+
+      - name: Run integration tests
+        run: go test -v ./integration_test/...
+        env:
+          API_BASE_URL: http://127.0.0.1:8080
+
+      - name: Stop container
+        if: always()
+        run: docker stop backend-test && docker rm backend-test

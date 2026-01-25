@@ -19,15 +19,19 @@ RUN go mod download && go build -o main .
 # Start a new stage from scratch
 FROM alpine:latest
 
+# Build arguments with defaults
+ARG CONFIG_FILE=config/config_prod.yaml
+ARG PORT=7878
+
 # Set the working directory in the container
 WORKDIR /app
 
 # Copy the pre-built binary from the previous stage
 COPY --from=builder /app/main .
-COPY --from=builder /app/config/config_prod.yaml ./config/config.yaml
+COPY --from=builder /app/${CONFIG_FILE} ./config/config.yaml
 COPY --from=builder /app/database ./database
 
-EXPOSE 7878
+EXPOSE ${PORT}
 
 # Command to run the executable
 CMD ["./main"]
