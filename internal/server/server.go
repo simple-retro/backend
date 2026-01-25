@@ -8,7 +8,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"net/http"
 
 	"github.com/gin-contrib/sessions"
@@ -18,6 +17,7 @@ import (
 	swaggerFiles "github.com/swaggo/files"     // swagger embed files
 	ginSwagger "github.com/swaggo/gin-swagger" // gin-swagger middleware
 	"go.uber.org/fx"
+	"go.uber.org/zap"
 )
 
 const (
@@ -29,6 +29,7 @@ type Controller struct {
 	service *service.Service
 	config  *config.Config
 	server  *http.Server
+	logger  *zap.Logger
 }
 
 type ControllerParams struct {
@@ -36,12 +37,14 @@ type ControllerParams struct {
 	Service   *service.Service
 	Config    *config.Config
 	Lifecycle fx.Lifecycle
+	Logger    *zap.Logger
 }
 
 func New(p ControllerParams) *Controller {
 	c := &Controller{
 		service: p.Service,
 		config:  p.Config,
+		logger:  p.Logger,
 	}
 
 	p.Lifecycle.Append(fx.Hook{
@@ -57,10 +60,10 @@ func New(p ControllerParams) *Controller {
 	return c
 }
 
-// CORSMiddleware to handle CORS headers
-func CORSMiddleware(conf *config.Config) gin.HandlerFunc {
+// middlewareCORS to handle CORS headers
+func (ct *Controller) middlewareCORS() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", fmt.Sprintf("http://%s:5173", conf.Server.Host))
+		c.Header("Access-Control-Allow-Origin", fmt.Sprintf("http://%s:5173", ct.config.Server.Host))
 		c.Header("Access-Control-Allow-Credentials", "true")
 		c.Header(
 			"Access-Control-Allow-Headers",
@@ -77,9 +80,9 @@ func CORSMiddleware(conf *config.Config) gin.HandlerFunc {
 	}
 }
 
-// Authenticate middleware to check for retrospective_id cookie
+// authenticate middleware to check for retrospective_id cookie
 // it sets the retrospective_id in the gin context if present
-func Authenticate() gin.HandlerFunc {
+func (ct *Controller) authenticate() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		retroIDcookie, err := c.Cookie("retrospective_id")
 		if err != nil {
@@ -90,7 +93,7 @@ func Authenticate() gin.HandlerFunc {
 
 		retroID, err := uuid.Parse(retroIDcookie)
 		if err != nil {
-			log.Printf("error parsing retrospective_id: %s", err.Error())
+			ct.logger.Error("error parsing retrospective_id", zap.Error(err))
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "not in any retrospective"})
 			c.Abort()
 			return
@@ -100,10 +103,10 @@ func Authenticate() gin.HandlerFunc {
 	}
 }
 
-// EnsureSessionID middleware to ensure session ID exists
+// ensureSessionID middleware to ensure session ID exists
 // it creates a new session ID if not present and saves it to the session store
 // the sessionID is stored under the key "session_id" in gin context.
-func EnsureSessionID() gin.HandlerFunc {
+func (ct *Controller) ensureSessionID() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		session := sessions.Default(c)
 
@@ -114,6 +117,7 @@ func EnsureSessionID() gin.HandlerFunc {
 
 			if err := session.Save(); err != nil {
 				// Fail hard: session must exist
+				ct.logger.Error("error while creating the session", zap.Error(err))
 				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
 					"error": "failed to create session",
 				})
@@ -127,13 +131,13 @@ func EnsureSessionID() gin.HandlerFunc {
 
 }
 
-func newSessionStore(conf *config.Config) gin.HandlerFunc {
-	store := cookie.NewStore([]byte(conf.SessionSecret))
+func (ct *Controller) newSessionStore() gin.HandlerFunc {
+	store := cookie.NewStore([]byte(ct.config.SessionSecret))
 	store.Options(sessions.Options{
 		Path:     "/",
 		MaxAge:   86400 * 7,
 		HttpOnly: true,
-		Secure:   !conf.Development, // true in prod with HTTPS
+		Secure:   !ct.config.Development, // true in prod with HTTPS
 	})
 
 	return sessions.Sessions(sessionName, store)
@@ -150,7 +154,7 @@ func newSessionStore(conf *config.Config) gin.HandlerFunc {
 func (ct *Controller) health(c *gin.Context) {
 	health, err := getServiceHealth()
 	if err != nil {
-		log.Printf("error getting service health: %s", err.Error())
+		ct.logger.Error("error getting service health", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "error getting service health"})
 		return
 	}
@@ -172,13 +176,13 @@ func (ct *Controller) health(c *gin.Context) {
 func (ct *Controller) createRetrospective(c *gin.Context) {
 	var input types.RetrospectiveCreateRequest
 	if err := c.BindJSON(&input); err != nil {
-		log.Printf("error parsing body content: %s", err.Error())
+		ct.logger.Error("error parsing body content", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid body content"})
 		return
 	}
 
 	if err := input.ValidateCreate(); err != nil {
-		log.Printf("invalid input: %s", err.Error())
+		ct.logger.Error("invalid input", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -191,7 +195,7 @@ func (ct *Controller) createRetrospective(c *gin.Context) {
 
 	err := ct.service.CreateRetrospective(c, &retrospective)
 	if err != nil {
-		log.Printf("error creating retrospective: %s", err.Error())
+		ct.logger.Error("error creating retrospective", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
@@ -214,20 +218,20 @@ func (ct *Controller) getRetrospective(c *gin.Context) {
 	input := c.Param("id")
 	id, err := uuid.Parse(input)
 	if err != nil {
-		log.Printf("error parsing path ID: %s", err.Error())
+		ct.logger.Error("error parsing path ID", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
 
 	retro, err := ct.service.GetRetrospective(c, id)
 	if err == sql.ErrNoRows {
-		log.Printf("retrospective ID %s not found", id.String())
+		ct.logger.Error("retrospective not found", zap.String("id", id.String()))
 		c.JSON(http.StatusNotFound, gin.H{"error": "restrospective not found"})
 		return
 	}
 
 	if err != nil {
-		log.Printf("error getting retrospective: %s", err.Error())
+		ct.logger.Error("error getting retrospective", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
@@ -253,20 +257,20 @@ func (ct *Controller) updateRetrospective(c *gin.Context) {
 	input := c.Param("id")
 	id, err := uuid.Parse(input)
 	if err != nil {
-		log.Printf("error parsing path ID: %s", err.Error())
+		ct.logger.Error("error parsing path ID", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
 
 	var inputRetro types.RetrospectiveCreateRequest
 	if err := c.BindJSON(&inputRetro); err != nil {
-		log.Printf("error parsing body content: %s", err.Error())
+		ct.logger.Error("error parsing body content", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid body content"})
 		return
 	}
 
 	if err := inputRetro.ValidateUpdate(); err != nil {
-		log.Printf("invalid input: %s", err.Error())
+		ct.logger.Error("invalid input", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -281,13 +285,13 @@ func (ct *Controller) updateRetrospective(c *gin.Context) {
 	err = ct.service.UpdateRetrospective(c, retro)
 
 	if err == sql.ErrNoRows {
-		log.Printf("retrospective ID %s not found", id.String())
+		ct.logger.Error("retrospective not found", zap.String("id", id.String()))
 		c.JSON(http.StatusNotFound, gin.H{"error": "restrospective not found"})
 		return
 	}
 
 	if err != nil {
-		log.Printf("error updating retrospective: %s", err.Error())
+		ct.logger.Error("error updating retrospective", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
@@ -310,20 +314,20 @@ func (ct *Controller) deleteRetrospective(c *gin.Context) {
 	input := c.Param("id")
 	id, err := uuid.Parse(input)
 	if err != nil {
-		log.Printf("error parsing path ID: %s", err.Error())
+		ct.logger.Error("error parsing path ID", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
 
 	retro, err := ct.service.DeleteRetrospective(c, id)
 	if err == sql.ErrNoRows {
-		log.Printf("retrospective ID %s not found", id.String())
+		ct.logger.Error("retrospective not found", zap.String("id", id.String()))
 		c.JSON(http.StatusNotFound, gin.H{"error": "restrospective not found"})
 		return
 	}
 
 	if err != nil {
-		log.Printf("error deleting retrospective: %s", err.Error())
+		ct.logger.Error("error deleting retrospective", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
@@ -344,13 +348,13 @@ func (ct *Controller) deleteRetrospective(c *gin.Context) {
 func (ct *Controller) createQuestion(c *gin.Context) {
 	var input types.QuestionCreateRequest
 	if err := c.BindJSON(&input); err != nil {
-		log.Printf("error parsing body content: %s", err.Error())
+		ct.logger.Error("error parsing body content", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid body content"})
 		return
 	}
 
 	if err := input.ValidateCreate(); err != nil {
-		log.Printf("invalid input: %s", err.Error())
+		ct.logger.Error("invalid input", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -363,11 +367,11 @@ func (ct *Controller) createQuestion(c *gin.Context) {
 	err := ct.service.CreateQuestion(c, question)
 	if err != nil {
 		if err.Error() == "FOREIGN KEY constraint failed" {
-			log.Printf("error creating question: %s", err.Error())
+			ct.logger.Error("error creating question", zap.Error(err))
 			c.JSON(http.StatusBadRequest, gin.H{"error": "retrospective doesn't exist"})
 			return
 		}
-		log.Printf("error creating question: %s", err.Error())
+		ct.logger.Error("error creating question", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
@@ -391,20 +395,20 @@ func (ct *Controller) updateQuestion(c *gin.Context) {
 	input := c.Param("id")
 	id, err := uuid.Parse(input)
 	if err != nil {
-		log.Printf("error parsing path ID: %s", err.Error())
+		ct.logger.Error("error parsing path ID", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
 
 	var inputQuestion types.QuestionCreateRequest
 	if err := c.BindJSON(&inputQuestion); err != nil {
-		log.Printf("error parsing body content: %s", err.Error())
+		ct.logger.Error("error parsing body content", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid body content"})
 		return
 	}
 
 	if err := inputQuestion.ValidateCreate(); err != nil {
-		log.Printf("invalid input: %s", err.Error())
+		ct.logger.Error("invalid input", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -418,13 +422,13 @@ func (ct *Controller) updateQuestion(c *gin.Context) {
 	err = ct.service.UpdateQuestion(c, question)
 
 	if err == sql.ErrNoRows {
-		log.Printf("question ID %s not found", id.String())
+		ct.logger.Error("question not found", zap.String("id", id.String()))
 		c.JSON(http.StatusNotFound, gin.H{"error": "question not found"})
 		return
 	}
 
 	if err != nil {
-		log.Printf("error updating question: %s", err.Error())
+		ct.logger.Error("error updating question", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
@@ -447,20 +451,20 @@ func (ct *Controller) deleteQuestion(c *gin.Context) {
 	input := c.Param("id")
 	id, err := uuid.Parse(input)
 	if err != nil {
-		log.Printf("error parsing path ID: %s", err.Error())
+		ct.logger.Error("error parsing path ID", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
 
 	question, err := ct.service.DeleteQuestion(c, id)
 	if err == sql.ErrNoRows {
-		log.Printf("question ID %s not found", id.String())
+		ct.logger.Error("question not found", zap.String("id", id.String()))
 		c.JSON(http.StatusNotFound, gin.H{"error": "question not found"})
 		return
 	}
 
 	if err != nil {
-		log.Printf("error deleting question: %s", err.Error())
+		ct.logger.Error("error deleting question", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
@@ -487,7 +491,7 @@ func (ct *Controller) subscribeChanges(c *gin.Context) {
 
 	retroID, err := uuid.Parse(retroIDparam)
 	if err != nil {
-		log.Printf("error parsing retrospective_id: %s", err.Error())
+		ct.logger.Error("error parsing retrospective_id", zap.Error(err))
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not in any retrospective"})
 		return
 	}
@@ -495,9 +499,8 @@ func (ct *Controller) subscribeChanges(c *gin.Context) {
 
 	err = ct.service.SubscribeChanges(c, c.Writer, c.Request)
 	if err != nil {
-		errMessage := fmt.Errorf("error subscribing: %s", err.Error())
-		log.Println(errMessage)
-		c.JSON(http.StatusBadRequest, gin.H{"error": errMessage})
+		ct.logger.Error("error subscribing", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "error subscribing"})
 		return
 	}
 
@@ -518,13 +521,13 @@ func (ct *Controller) subscribeChanges(c *gin.Context) {
 func (ct *Controller) createAnswer(c *gin.Context) {
 	var input *types.AnswerCreateRequest
 	if err := c.BindJSON(&input); err != nil {
-		log.Printf("error parsing body content: %s", err.Error())
+		ct.logger.Error("error parsing body content", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid body content"})
 		return
 	}
 
 	if err := input.ValidateCreate(); err != nil {
-		log.Printf("invalid input: %s", err.Error())
+		ct.logger.Error("invalid input", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -536,7 +539,7 @@ func (ct *Controller) createAnswer(c *gin.Context) {
 
 	err := ct.service.CreateAnswer(c, answer)
 	if err != nil {
-		log.Printf("error creating answer: %s", err.Error())
+		ct.logger.Error("error creating answer", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
@@ -560,20 +563,20 @@ func (ct *Controller) updateAnswer(c *gin.Context) {
 	input := c.Param("id")
 	id, err := uuid.Parse(input)
 	if err != nil {
-		log.Printf("error parsing path question ID: %s", err.Error())
+		ct.logger.Error("error parsing path question ID", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid question id"})
 		return
 	}
 
 	var inputAnswer *types.AnswerCreateRequest
 	if err := c.BindJSON(&inputAnswer); err != nil {
-		log.Printf("error parsing body content: %s", err.Error())
+		ct.logger.Error("error parsing body content", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid body content"})
 		return
 	}
 
 	if err := inputAnswer.ValidateCreate(); err != nil {
-		log.Printf("invalid input: %s", err.Error())
+		ct.logger.Error("invalid input", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -586,13 +589,13 @@ func (ct *Controller) updateAnswer(c *gin.Context) {
 
 	err = ct.service.UpdateAnswer(c, answer)
 	if err == sql.ErrNoRows {
-		log.Printf("answer ID %s not found", id.String())
+		ct.logger.Error("answer not found", zap.String("id", id.String()))
 		c.JSON(http.StatusNotFound, gin.H{"error": "answer not found"})
 		return
 	}
 
 	if err != nil {
-		log.Printf("error updating answer: %s", err.Error())
+		ct.logger.Error("error updating answer", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
@@ -615,7 +618,7 @@ func (ct *Controller) deleteAnswer(c *gin.Context) {
 	input := c.Param("id")
 	id, err := uuid.Parse(input)
 	if err != nil {
-		log.Printf("error parsing path question ID: %s", err.Error())
+		ct.logger.Error("error parsing path question ID", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid question id"})
 		return
 	}
@@ -625,13 +628,13 @@ func (ct *Controller) deleteAnswer(c *gin.Context) {
 	}
 	err = ct.service.DeleteAnswer(c, answer)
 	if err == sql.ErrNoRows {
-		log.Printf("answer ID %s not found", id.String())
+		ct.logger.Error("answer not found", zap.String("id", id.String()))
 		c.JSON(http.StatusNotFound, gin.H{"error": "answer not found"})
 		return
 	}
 
 	if err != nil {
-		log.Printf("error deleting answer: %s", err.Error())
+		ct.logger.Error("error deleting answer", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
@@ -668,13 +671,13 @@ func (ct *Controller) getLimits(c *gin.Context) {
 func (ct *Controller) voteAnswer(c *gin.Context) {
 	var input types.AnswerVoteRequest
 	if err := c.BindJSON(&input); err != nil {
-		log.Printf("error parsing body content: %s", err.Error())
+		ct.logger.Error("error parsing body content", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid body content"})
 		return
 	}
 
 	if err := input.Validate(); err != nil {
-		log.Printf("invalid input: %s", err.Error())
+		ct.logger.Error("invalid input", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -690,7 +693,7 @@ func (ct *Controller) voteAnswer(c *gin.Context) {
 		return
 	}
 
-	log.Printf("error voting answer: %s", err.Error())
+	ct.logger.Error("error voting answer", zap.Error(err))
 
 	switch err {
 	case service.ErrVoteAlreadyExists:
@@ -720,15 +723,15 @@ func (ct *Controller) Start() {
 	router := gin.Default()
 
 	if conf.Server.WithCors {
-		router.Use(CORSMiddleware(conf))
+		router.Use(ct.middlewareCORS())
 	}
 
 	if conf.Development {
 		router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	}
 
-	router.Use(newSessionStore(conf))
-	router.Use(EnsureSessionID())
+	router.Use(ct.newSessionStore())
+	router.Use(ct.ensureSessionID())
 
 	api := router.Group("/api")
 	api.GET("/health", ct.health)
@@ -740,7 +743,7 @@ func (ct *Controller) Start() {
 	api.GET("/limits", ct.getLimits)
 
 	authorized := api.Group("/")
-	authorized.Use(Authenticate())
+	authorized.Use(ct.authenticate())
 	authorized.POST("/question", ct.createQuestion)
 	authorized.PATCH("/question/:id", ct.updateQuestion)
 	authorized.DELETE("/question/:id", ct.deleteQuestion)
@@ -756,15 +759,15 @@ func (ct *Controller) Start() {
 		Handler: router,
 	}
 
-	log.Printf("starting server on %s", addr)
+	ct.logger.Info("starting server", zap.String("addr", addr))
 	if err := ct.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatalf("error starting server: %s", err.Error())
+		ct.logger.Fatal("error starting server", zap.Error(err))
 	}
 }
 
 func (ct *Controller) stop(ctx context.Context) error {
 	if ct.server != nil {
-		log.Println("shutting down server...")
+		ct.logger.Info("shutting down server...")
 		return ct.server.Shutdown(ctx)
 	}
 	return nil

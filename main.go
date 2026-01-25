@@ -11,6 +11,7 @@ import (
 	"api/internal/service"
 
 	"go.uber.org/fx"
+	"go.uber.org/zap"
 )
 
 func main() {
@@ -24,6 +25,7 @@ func main() {
 				}
 			},
 			config.NewConfig,
+			config.NewLogger,
 			repository.NewSQLite,
 			repository.NewWebSocket,
 			service.New,
@@ -37,6 +39,16 @@ func main() {
 				}
 				return nil
 			},
+
+			// Ensure logger is synced on shutdown
+			func(logger *zap.Logger, lc fx.Lifecycle) {
+				lc.Append(fx.Hook{
+					OnStop: func(ctx context.Context) error {
+						return logger.Sync()
+					},
+				})
+			},
+
 			server.New,
 			schedule.New,
 		),

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"time"
@@ -15,16 +14,19 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"go.uber.org/fx"
+	"go.uber.org/zap"
 )
 
 var _ WebSocketRepository = (*WebSocket)(nil)
 
 type WebSocket struct {
 	connections map[uuid.UUID][]*websocket.Conn
+	logger      *zap.Logger
 }
 
 type WebSocketParams struct {
 	fx.In
+	Logger *zap.Logger
 }
 
 var upgrader = websocket.Upgrader{
@@ -39,6 +41,7 @@ func NewWebSocket(p WebSocketParams) WebSocketRepository {
 	connections := make(map[uuid.UUID][]*websocket.Conn)
 	return &WebSocket{
 		connections: connections,
+		logger:      p.Logger,
 	}
 }
 
@@ -64,7 +67,7 @@ func (ws *WebSocket) AddConnection(ctx context.Context, w http.ResponseWriter, r
 	for {
 		err := conn.SetReadDeadline(time.Now().Add(30 * time.Second))
 		if err != nil {
-			fmt.Println(err)
+			ws.logger.Error("error setting read deadline", zap.Error(err))
 			break
 		}
 
@@ -75,7 +78,7 @@ func (ws *WebSocket) AddConnection(ctx context.Context, w http.ResponseWriter, r
 			if message.Type == "ping" {
 				errWrite := conn.WriteJSON(types.WebSocketMessage{Type: "pong"})
 				if errWrite != nil {
-					fmt.Println(errWrite)
+					ws.logger.Error("error writing pong message", zap.Error(errWrite))
 				}
 			}
 			continue
@@ -86,7 +89,7 @@ func (ws *WebSocket) AddConnection(ctx context.Context, w http.ResponseWriter, r
 			break
 		}
 
-		fmt.Println(err)
+		ws.logger.Error("error reading json message", zap.Error(err))
 	}
 	conn.Close()
 	ws.connections[retrospectiveID][i] = nil
@@ -119,7 +122,7 @@ func (w *WebSocket) sendMessageToRetro(ctx context.Context, message types.WebSoc
 		}
 		err := conn.WriteJSON(message)
 		if err != nil {
-			log.Printf("Error sending message %+v to connection: %v", message, err)
+			w.logger.Error("error sending message to connection", zap.Any("message", message), zap.Error(err))
 		}
 	}
 
@@ -170,11 +173,11 @@ func (w *WebSocket) DeleteQuestion(ctx context.Context, id uuid.UUID) (*types.Qu
 	return nil, w.sendMessageToRetro(ctx, message, nil)
 }
 
-func (s *WebSocket) GetOldRetrospectives(ctx context.Context, date time.Time) ([]uuid.UUID, error) {
+func (*WebSocket) GetOldRetrospectives(ctx context.Context, date time.Time) ([]uuid.UUID, error) {
 	panic("unimplemented")
 }
 
-func (s *WebSocket) GetAllRetrospectives(ctx context.Context) ([]uuid.UUID, error) {
+func (*WebSocket) GetAllRetrospectives(ctx context.Context) ([]uuid.UUID, error) {
 	panic("unimplemented")
 }
 

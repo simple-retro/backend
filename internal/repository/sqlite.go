@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
 	"go.uber.org/fx"
+	"go.uber.org/zap"
 )
 
 var _ Repository = (*SQLite)(nil)
@@ -21,11 +22,13 @@ var _ Repository = (*SQLite)(nil)
 type SQLite struct {
 	conn   *sql.DB
 	config *config.Config
+	logger *zap.Logger
 }
 
 type SQLiteParams struct {
 	fx.In
 	Config *config.Config
+	Logger *zap.Logger
 }
 
 var (
@@ -54,6 +57,7 @@ func NewSQLite(p SQLiteParams) (Repository, error) {
 	repo := &SQLite{
 		conn:   db,
 		config: p.Config,
+		logger: p.Logger,
 	}
 
 	err = repo.migrate(p.Config.Database.Schema)
