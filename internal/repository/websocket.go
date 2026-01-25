@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"api/types"
 	"context"
 	"errors"
 	"fmt"
@@ -11,8 +10,11 @@ import (
 	"net/http"
 	"time"
 
+	"api/types"
+
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"go.uber.org/fx"
 )
 
 var _ WebSocketRepository = (*WebSocket)(nil)
@@ -21,12 +23,23 @@ type WebSocket struct {
 	connections map[uuid.UUID][]*websocket.Conn
 }
 
+type WebSocketParams struct {
+	fx.In
+}
+
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
 		return true
 	},
+}
+
+func NewWebSocket(p WebSocketParams) WebSocketRepository {
+	connections := make(map[uuid.UUID][]*websocket.Conn)
+	return &WebSocket{
+		connections: connections,
+	}
 }
 
 // AddConnection implements WebSocketRepository.
@@ -84,13 +97,6 @@ func (ws *WebSocket) AddConnection(ctx context.Context, w http.ResponseWriter, r
 // GetRetrospective implements WebSocketRepository.
 func (*WebSocket) GetRetrospective(ctx context.Context, id uuid.UUID) (*types.Retrospective, error) {
 	panic("unimplemented")
-}
-
-func NewWebSocket() (*WebSocket, error) {
-	connections := make(map[uuid.UUID][]*websocket.Conn)
-	return &WebSocket{
-		connections: connections,
-	}, nil
 }
 
 func (w *WebSocket) sendMessageToRetro(ctx context.Context, message types.WebSocketMessage, retrospectiveID *uuid.UUID) error {
