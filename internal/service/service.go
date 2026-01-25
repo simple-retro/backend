@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 
 	"go.uber.org/fx"
+	"go.uber.org/zap"
 
 	"api/config"
 	"api/internal/repository"
@@ -26,6 +26,7 @@ type Service struct {
 	repository          repository.Repository
 	webSocketRepository repository.WebSocketRepository
 	config              *config.Config
+	logger              *zap.Logger
 }
 
 type ServiceParams struct {
@@ -33,6 +34,7 @@ type ServiceParams struct {
 	Repository          repository.Repository
 	WebSocketRepository repository.WebSocketRepository
 	Config              *config.Config
+	Logger              *zap.Logger
 }
 
 func New(p ServiceParams) *Service {
@@ -40,6 +42,7 @@ func New(p ServiceParams) *Service {
 		repository:          p.Repository,
 		webSocketRepository: p.WebSocketRepository,
 		config:              p.Config,
+		logger:              p.Logger,
 	}
 }
 
@@ -222,6 +225,6 @@ func (s *Service) CleanUpRetros(ctx context.Context) error {
 		}
 	}
 
-	log.Printf("deleted %d retrospectives older than %s", len(ids), date.String())
+	s.logger.Info("deleted retrospectives", zap.Int("count", len(ids)), zap.String("before", date.String()))
 	return nil
 }

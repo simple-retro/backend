@@ -4,15 +4,16 @@ import (
 	"api/config"
 	"api/internal/service"
 	"context"
-	"log"
 	"time"
 
 	"go.uber.org/fx"
+	"go.uber.org/zap"
 )
 
 type Schedule struct {
 	service *service.Service
 	config  *config.Config
+	logger  *zap.Logger
 	stopCh  chan struct{}
 }
 
@@ -54,7 +55,7 @@ func (s *Schedule) start() {
 			case <-ticker.C:
 				s.cleanUp()
 			case <-s.stopCh:
-				log.Println("stopping schedule")
+				s.logger.Info("stopping schedule")
 				return
 			}
 		}
@@ -66,9 +67,9 @@ func (s *Schedule) stop() {
 }
 
 func (s *Schedule) cleanUp() {
-	log.Println("starting clean up routine")
+	s.logger.Info("starting clean up routine")
 	ctx := context.Background()
 	if err := s.service.CleanUpRetros(ctx); err != nil {
-		log.Printf("error running clean up routine: %s", err.Error())
+		s.logger.Error("error running clean up routine", zap.Error(err))
 	}
 }
