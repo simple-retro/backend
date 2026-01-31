@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
@@ -707,6 +708,61 @@ func (ct *Controller) voteAnswer(c *gin.Context) {
 
 }
 
+// exportRetrospective godoc
+//
+//	@Summary	Export Retrospective
+//	@Tags		Retrospective
+//	@Accept		json
+//	@Produce	json
+//	@Produce	text/markdown
+//	@Param		export	body		types.RetrospectiveExportRequest	true	"Export Retrospective"
+//	@Success	200		{object}	types.Retrospective					"Retrospective Object (JSON) or Markdown file"
+//	@Failure	400		{string}	string								"Invalid input"
+//	@Failure	404		{string}	string								"Not Found"
+//	@Failure	500		{string}	string								"Internal error"
+//	@Router		/retrospective/export [post]
+func (ct *Controller) exportRetrospective(c *gin.Context) {
+	var input types.RetrospectiveExportRequest
+	if err := c.BindJSON(&input); err != nil {
+		ct.logger.Error("error parsing body content", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid body content"})
+		return
+	}
+
+	if err := input.Validate(); err != nil {
+		ct.logger.Error("invalid input", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	retro, err := ct.service.GetRetrospective(c, input.RetrospectiveID)
+	if err == sql.ErrNoRows {
+		ct.logger.Error("retrospective not found", zap.String("id", input.RetrospectiveID.String()))
+		c.JSON(http.StatusNotFound, gin.H{"error": "restrospective not found"})
+		return
+	}
+
+	if err != nil {
+		ct.logger.Error("error getting retrospective", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
+
+	filename := fmt.Sprintf("retrospective-%s", strings.ReplaceAll(retro.Name, " ", "_"))
+	switch input.ExportType {
+	case types.ExportTypeMarkdown:
+
+		markdown := ct.service.ConvertRetrospectiveToMarkdown(c, retro)
+		c.Header("Content-Type", "text/markdown")
+		c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.md\"", filename))
+		c.String(http.StatusOK, markdown)
+	default:
+		c.Header("Content-Type", "application/json")
+		c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.json\"", filename))
+		c.JSON(http.StatusOK, retro)
+	}
+}
+
 // @license.name	MIT
 // @license.url	https://github.com/simple-retro/api/blob/master/LICENSE
 func (ct *Controller) Start() {
@@ -739,6 +795,7 @@ func (ct *Controller) Start() {
 	api.GET("/retrospective/:id", ct.getRetrospective)
 	api.PATCH("/retrospective/:id", ct.updateRetrospective)
 	api.DELETE("/retrospective/:id", ct.deleteRetrospective)
+	api.POST("/retrospective/export", ct.exportRetrospective)
 	api.GET("/hello/:id", ct.subscribeChanges)
 	api.GET("/limits", ct.getLimits)
 

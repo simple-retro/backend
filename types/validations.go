@@ -1,6 +1,10 @@
 package types
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/google/uuid"
+)
 
 const (
 	NAME_LIMIT   = 100
@@ -105,4 +109,22 @@ func (a *AnswerVoteRequest) Validate() error {
 	default:
 		return fmt.Errorf("invalid vote action")
 	}
+}
+
+func (r RetrospectiveExportRequest) Validate() error {
+	if r.RetrospectiveID.String() == "" {
+		return fmt.Errorf("retrospective id cannot be empty")
+	}
+
+	if r.RetrospectiveID == uuid.Nil {
+		return fmt.Errorf("retrospective id cannot be nil")
+	}
+
+	switch r.ExportType {
+	case ExportTypeJSON, ExportTypeMarkdown:
+		return nil
+	default:
+		return fmt.Errorf("invalid export type")
+	}
+
 }
