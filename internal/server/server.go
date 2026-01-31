@@ -715,8 +715,9 @@ func (ct *Controller) voteAnswer(c *gin.Context) {
 //	@Accept		json
 //	@Produce	json
 //	@Produce	text/markdown
+//	@Produce	application/pdf
 //	@Param		export	body		types.RetrospectiveExportRequest	true	"Export Retrospective"
-//	@Success	200		{object}	types.Retrospective					"Retrospective Object (JSON) or Markdown file"
+//	@Success	200		{object}	types.Retrospective					"Retrospective Object (JSON), Markdown file, or PDF file"
 //	@Failure	400		{string}	string								"Invalid input"
 //	@Failure	404		{string}	string								"Not Found"
 //	@Failure	500		{string}	string								"Internal error"
@@ -751,11 +752,20 @@ func (ct *Controller) exportRetrospective(c *gin.Context) {
 	filename := fmt.Sprintf("retrospective-%s", strings.ReplaceAll(retro.Name, " ", "_"))
 	switch input.ExportType {
 	case types.ExportTypeMarkdown:
-
 		markdown := ct.service.ConvertRetrospectiveToMarkdown(c, retro)
 		c.Header("Content-Type", "text/markdown")
 		c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.md\"", filename))
 		c.String(http.StatusOK, markdown)
+	case types.ExportTypePDF:
+		pdfBytes, err := ct.service.ConvertRetrospectiveToPDF(c, retro)
+		if err != nil {
+			ct.logger.Error("error converting retrospective to PDF", zap.Error(err))
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "error generating PDF"})
+			return
+		}
+		c.Header("Content-Type", "application/pdf")
+		c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.pdf\"", filename))
+		c.Data(http.StatusOK, "application/pdf", pdfBytes)
 	default:
 		c.Header("Content-Type", "application/json")
 		c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.json\"", filename))

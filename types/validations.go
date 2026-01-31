@@ -121,7 +121,7 @@ func (r RetrospectiveExportRequest) Validate() error {
 	}
 
 	switch r.ExportType {
-	case ExportTypeJSON, ExportTypeMarkdown:
+	case ExportTypeJSON, ExportTypeMarkdown, ExportTypePDF:
 		return nil
 	default:
 		return fmt.Errorf("invalid export type")
