@@ -7,10 +7,14 @@ import (
 )
 
 type VoteAction string
+type ExportType string
 
 const (
 	VoteAdd    VoteAction = "ADD_VOTE"
 	VoteRemove VoteAction = "REMOVE_VOTE"
+
+	ExportTypeJSON     ExportType = "JSON"
+	ExportTypeMarkdown ExportType = "MARKDOWN"
 )
 
 type Retrospective struct {
@@ -53,6 +57,11 @@ type AnswerCreateRequest struct {
 type AnswerVoteRequest struct {
 	AnswerID uuid.UUID  `json:"answer_id"`
 	Action   VoteAction `json:"action"`
+}
+
+type RetrospectiveExportRequest struct {
+	RetrospectiveID uuid.UUID  `json:"retrospective_id"`
+	ExportType      ExportType `json:"export_type"`
 }
 
 func (v VoteAction) String() string {

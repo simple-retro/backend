@@ -21,6 +21,7 @@ type ScheduleParams struct {
 	fx.In
 	Service   *service.Service
 	Config    *config.Config
+	Logger    *zap.Logger
 	Lifecycle fx.Lifecycle
 }
 
@@ -28,6 +29,7 @@ func New(p ScheduleParams) *Schedule {
 	s := &Schedule{
 		service: p.Service,
 		config:  p.Config,
+		logger:  p.Logger,
 		stopCh:  make(chan struct{}),
 	}
 
