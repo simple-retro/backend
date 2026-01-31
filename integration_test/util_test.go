@@ -403,3 +403,27 @@ func GenerateString(length int) string {
 	}
 	return string(result)
 }
+
+// ExportRetrospective exports a retrospective in the specified format
+func (c *TestClient) ExportRetrospective(retroID uuid.UUID, exportType types.ExportType) ([]byte, *http.Response, error) {
+	reqBody := types.RetrospectiveExportRequest{
+		RetrospectiveID: retroID,
+		ExportType:      exportType,
+	}
+
+	resp, err := c.DoRequest(http.MethodPost, "/api/retrospective/export", reqBody, map[string]string{})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, resp, nil
+	}
+
+	var buf bytes.Buffer
+	if _, err := buf.ReadFrom(resp.Body); err != nil {
+		return nil, resp, err
+	}
+
+	return buf.Bytes(), resp, nil
+}
