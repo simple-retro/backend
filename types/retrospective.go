@@ -15,6 +15,7 @@ const (
 
 	ExportTypeJSON     ExportType = "JSON"
 	ExportTypeMarkdown ExportType = "MARKDOWN"
+	ExportTypePDF      ExportType = "PDF"
 )
 
 type Retrospective struct {
